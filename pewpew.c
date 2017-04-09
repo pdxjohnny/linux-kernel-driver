@@ -1,5 +1,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/cdev.h>
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -22,6 +23,9 @@ struct pewpew_dev {
 };
 struct pewpew_dev pewpew;
 
+static int syscall_val = 40;
+module_param(syscall_val, int, S_IRUGO);
+MODULE_PARM_DESC(syscall_val, "Initial value of syscall_val");
 
 int pewpew_open(struct inode *inode, struct file *flip) {
 	flip->private_data = container_of(inode->i_cdev, struct pewpew_dev, cdev);
@@ -93,8 +97,9 @@ static int __init pewpew_init(void) {
   /* Initialize our device structure */
   memset(&pewpew, 0, sizeof(pewpew));
   pewpew.count = 1;
-  /* TODO: Change this to a module parameter. */
-  pewpew.syscall_val = 40;
+  /* Get value from module parameter. */
+  pewpew.syscall_val = syscall_val;
+  printk(INFO "syscall_val starting at %d\n", pewpew.syscall_val);
   strcpy(pewpew.name, MODULE_STR);
   /* Obtain a device number */
   err = alloc_chrdev_region(&pewpew.dev, 0, pewpew.count, pewpew.name);

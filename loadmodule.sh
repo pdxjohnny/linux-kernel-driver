@@ -4,7 +4,7 @@ MODULE=pewpew
 rmmod ${MODULE}
 rm -f /dev/${MODULE}0
 
-insmod ${MODULE}.ko
+insmod ${MODULE}.ko $*
 MAJOR=$(grep $MODULE /proc/devices | awk '{print $1}')
 
 if [[ "$MAJOR" == "" ]]; then
