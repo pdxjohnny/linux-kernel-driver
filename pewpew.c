@@ -25,8 +25,6 @@ struct pewpew_dev pewpew;
 
 int pewpew_open(struct inode *inode, struct file *flip) {
 	flip->private_data = container_of(inode->i_cdev, struct pewpew_dev, cdev);
-  printk(INFO "Started open...\n");
-  printk(INFO "Open complete\n");
 	return 0;
 }
 
@@ -69,13 +67,14 @@ ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, l
     return -ENOMEM;
   }
   /* Copy the contents of the user buffer to the kernel buffer */
-  copy_from_user(kbuff, buff, count);
+  copy_from_user(kbuff, buff, (sizeof(*buff) * count) + 1);
+  kbuff[sizeof(*buff) * count] = '\0';
   /* Parse the kernel buffer into the pewpew_dev syscall_val */
   err = kstrtoint(kbuff, 10, &p->syscall_val);
   /* Free the kernel buffer */
   kfree(kbuff);
   /* Check if parse was successful */
-  if (err) {
+  if (err < 0) {
     printk(ERR "failed to parse integer\n");
     return -EINVAL;
   }
@@ -85,8 +84,6 @@ ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, l
 }
 
 int pewpew_release(struct inode *inode, struct file *filp) {
-  printk(INFO "Started release...\n");
-  printk(INFO "Release complete\n");
   return 0;
 }
 
@@ -116,7 +113,7 @@ static int __init pewpew_init(void) {
   pewpew.cdev.owner = THIS_MODULE;
   pewpew.cdev.ops = &pewpew.fops;
   /* Add the character device */
-  err = cdev_add(&pewpew.cdev, 0, pewpew.count);
+  err = cdev_add(&pewpew.cdev, pewpew.dev, pewpew.count);
   if (err) {
     printk(ERR "failed to cdev_add\n");
     return 0;
