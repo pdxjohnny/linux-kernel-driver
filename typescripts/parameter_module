@@ -1,75 +1,53 @@
-Script started on Sun 09 Apr 2017 12:22:18 PM PDT
-[user@archvm Assignment2]$ sudo bash -x loadmodule.sh
+Script started on Fri 14 Apr 2017 11:09:27 AM PDT
+$ make all
+make -C /lib/modules/4.10.8-1-ARCH/build SUBDIRS=/home/user/Assignment2 modules
+make[1]: Entering directory '/usr/lib/modules/4.10.8-1-ARCH/build'
+  CC [M]  /home/user/Assignment2/pewpew.o
+  Building modules, stage 2.
+  MODPOST 1 modules
+  CC      /home/user/Assignment2/pewpew.mod.o
+  LD [M]  /home/user/Assignment2/pewpew.ko
+make[1]: Leaving directory '/usr/lib/modules/4.10.8-1-ARCH/build'
+gcc -o user user.c
+$ sudo bash -x loadmodule.sh
 + MODULE=pewpew
 + rmmod pewpew
 rmmod: ERROR: Module pewpew is not currently loaded
 + rm -f /dev/pewpew0
 + insmod pewpew.ko
-++ grep pewpew /proc/devices
 ++ awk '{print $1}'
+++ grep pewpew /proc/devices
 + MAJOR=246
 + [[ 246 == '' ]]
 + mknod /dev/pewpew0 c 246 0
 + chmod 666 /dev/pewpew0
-[user@archvm Assignment2]$ cat /proc/devices | grep pewpew
+$ cat /proc/devices | grep pewpew
 246 pewpew
-[user@archvm Assignment2]$ cat /sys/module/pewpew/parameters/syscall_val
+$ sudo cat /sys/module/pewpew/parameters/syscall_val
 40
-[user@archvm Assignment2]$ ./user 897
+$ ./user 2345
 40
-897
-[user@archvm Assignment2]$ dmesg -T | grep pewpew
-[Sun Apr  9 12:22:43 2017] pewpew: loading out-of-tree module taints kernel.
-[Sun Apr  9 12:22:43 2017] pewpew: Initializing...
-[Sun Apr  9 12:22:43 2017] pewpew: syscall_val starting at 40
-[Sun Apr  9 12:22:43 2017] pewpew: Initialized
-[Sun Apr  9 12:23:51 2017] pewpew: Started read...
-[Sun Apr  9 12:23:51 2017] pewpew: Read complete, syscall_val is was 40
-[Sun Apr  9 12:23:51 2017] pewpew: Started write...
-[Sun Apr  9 12:23:51 2017] pewpew: Write complete, syscall_val is now 897
-[Sun Apr  9 12:23:51 2017] pewpew: Started read...
-[Sun Apr  9 12:23:51 2017] pewpew: Read complete, syscall_val is was 897
-[user@archvm Assignment2]$ sudo bash -x loadmodule.sh syscall_val=97
-+ MODULE=pewpew
-+ rmmod pewpew
-+ rm -f /dev/pewpew0
-+ insmod pewpew.ko syscall_val=97
-++ grep pewpew /proc/devices
-++ awk '{print $1}'
-+ MAJOR=246
-+ [[ 246 == '' ]]
-+ mknod /dev/pewpew0 c 246 0
-+ chmod 666 /dev/pewpew0
-[user@archvm Assignment2]$ cat /sys/module/pewpew/parameters/syscall_val
-97
-[user@archvm Assignment2]$ ./user 764
-97
-764
-[user@archvm Assignment2]$ sudo rmmod pewpew
-[user@archvm Assignment2]$ dmesg -T | grep pewpew
-[Sun Apr  9 12:22:43 2017] pewpew: loading out-of-tree module taints kernel.
-[Sun Apr  9 12:22:43 2017] pewpew: Initializing...
-[Sun Apr  9 12:22:43 2017] pewpew: syscall_val starting at 40
-[Sun Apr  9 12:22:43 2017] pewpew: Initialized
-[Sun Apr  9 12:23:51 2017] pewpew: Started read...
-[Sun Apr  9 12:23:51 2017] pewpew: Read complete, syscall_val is was 40
-[Sun Apr  9 12:23:51 2017] pewpew: Started write...
-[Sun Apr  9 12:23:51 2017] pewpew: Write complete, syscall_val is now 897
-[Sun Apr  9 12:23:51 2017] pewpew: Started read...
-[Sun Apr  9 12:23:51 2017] pewpew: Read complete, syscall_val is was 897
-[Sun Apr  9 12:26:37 2017] pewpew: Exiting...
-[Sun Apr  9 12:26:37 2017] pewpew: Exited successfully
-[Sun Apr  9 12:26:37 2017] pewpew: Initializing...
-[Sun Apr  9 12:26:37 2017] pewpew: syscall_val starting at 97
-[Sun Apr  9 12:26:37 2017] pewpew: Initialized
-[Sun Apr  9 12:26:58 2017] pewpew: Started read...
-[Sun Apr  9 12:26:58 2017] pewpew: Read complete, syscall_val is was 97
-[Sun Apr  9 12:26:58 2017] pewpew: Started write...
-[Sun Apr  9 12:26:58 2017] pewpew: Write complete, syscall_val is now 764
-[Sun Apr  9 12:26:58 2017] pewpew: Started read...
-[Sun Apr  9 12:26:58 2017] pewpew: Read complete, syscall_val is was 764
-[Sun Apr  9 12:27:19 2017] pewpew: Exiting...
-[Sun Apr  9 12:27:19 2017] pewpew: Exited successfully
-[user@archvm Assignment2]$ exit
+2345
+$ echo 32 | sudo tee /sys/module/pewpew/parameters/syscall_val
+32
+$ ./user 991234
+32
+991234
+$ sudo rmmod pewpew
+$ dmesg | grep pewpew
+[  324.428744] pewpew: Initializing...
+[  324.428745] pewpew: syscall_val starting at 40
+[  324.428746] pewpew: Initialized
+[  347.234593] pewpew: Open starting syscall_val at 40
+[  347.234605] pewpew: Read complete, syscall_val was 40
+[  347.234772] pewpew: Write complete, syscall_val is now 2345
+[  347.234779] pewpew: Read complete, syscall_val was 2345
+[  363.432437] pewpew: Open starting syscall_val at 32
+[  363.432445] pewpew: Read complete, syscall_val was 32
+[  363.432580] pewpew: Write complete, syscall_val is now 991234
+[  363.432584] pewpew: Read complete, syscall_val was 991234
+[  391.010720] pewpew: Exiting...
+[  391.010723] pewpew: Exited successfully
+$ exit
 
-Script done on Sun 09 Apr 2017 12:27:26 PM PDT
+Script done on Fri 14 Apr 2017 11:11:12 AM PDT

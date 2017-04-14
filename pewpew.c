@@ -1,11 +1,9 @@
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/moduleparam.h>
 #include <linux/cdev.h>
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
-// #include <linux/kernel.h>
 #include <asm/uaccess.h>
 MODULE_LICENSE("GPL");
 
@@ -13,22 +11,35 @@ MODULE_LICENSE("GPL");
 #define INFO KERN_INFO MODULE_STR ": "
 #define ERR  KERN_ERR  MODULE_STR ": "
 
+int pewpew_open(struct inode *inode, struct file *flip);
+ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *offp);
+ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, loff_t *offp);
+int pewpew_release(struct inode *inode, struct file *filp);
+
 struct pewpew_dev {
   dev_t dev;
   unsigned int count;
   char name[255];
   struct cdev cdev;
-  struct file_operations fops;
   int syscall_val;
 };
 struct pewpew_dev pewpew;
 
+struct file_operations pewpew_fops = {
+  .open = pewpew_open,
+  .read = pewpew_read,
+  .write = pewpew_write,
+  .release = pewpew_release,
+};
+
 static int syscall_val = 40;
-module_param(syscall_val, int, S_IRUGO);
+module_param(syscall_val, int, S_IRUSR|S_IWUSR);
 MODULE_PARM_DESC(syscall_val, "Initial value of syscall_val");
 
 int pewpew_open(struct inode *inode, struct file *flip) {
 	flip->private_data = container_of(inode->i_cdev, struct pewpew_dev, cdev);
+  ((struct pewpew_dev *)flip->private_data)->syscall_val = syscall_val;
+  printk(INFO "Open starting syscall_val at %d\n", syscall_val);
 	return 0;
 }
 
@@ -37,7 +48,11 @@ ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *
   char *kbuff;
   const unsigned int kbuff_size = 255;
   struct pewpew_dev *p = flip->private_data;
-  printk(INFO "Started read...\n");
+  /* Make sure we got a buffer from userspace */
+  if (buff == NULL) {
+    printk(ERR "NULL buffer from userspace\n");
+    return -EINVAL;
+  }
   /* Allocate a kernel buffer big enough to hold any int as a string */
   kbuff = kmalloc(kbuff_size, GFP_KERNEL);
   /* Check if allocation was successful */
@@ -53,7 +68,7 @@ ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *
   copy_to_user(buff, kbuff, count);
   /* Free the kernel buffer */
   kfree(kbuff);
-  printk(INFO "Read complete, syscall_val is was %d\n", p->syscall_val);
+  printk(INFO "Read complete, syscall_val was %d\n", p->syscall_val);
   /* Return length of the string written back */
   return count;
 }
@@ -62,7 +77,11 @@ ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, l
   int err;
   char *kbuff;
   struct pewpew_dev *p = flip->private_data;
-  printk(INFO "Started write...\n");
+  /* Make sure we got a buffer from userspace */
+  if (buff == NULL) {
+    printk(ERR "NULL buffer from userspace\n");
+    return -EINVAL;
+  }
   /* Allocate a kernel buffer of the same size as the user one */
   kbuff = kmalloc(sizeof(*buff) * count, GFP_KERNEL);
   /* Check if allocation was successful */
@@ -107,19 +126,14 @@ static int __init pewpew_init(void) {
     printk(ERR "failed to alloc_chrdev_region\n");
     return 0;
   }
-  /* Set up the file operations structure. */
-  pewpew.fops.owner = THIS_MODULE;
-  pewpew.fops.open = pewpew_open;
-  pewpew.fops.read = pewpew_read;
-  pewpew.fops.write = pewpew_write;
-  pewpew.fops.release = pewpew_release;
   /* Initialize the character device structure */
-  cdev_init(&pewpew.cdev, &pewpew.fops);
+  cdev_init(&pewpew.cdev, &pewpew_fops);
   pewpew.cdev.owner = THIS_MODULE;
-  pewpew.cdev.ops = &pewpew.fops;
+  pewpew.cdev.ops = &pewpew_fops;
   /* Add the character device */
   err = cdev_add(&pewpew.cdev, pewpew.dev, pewpew.count);
   if (err) {
+    unregister_chrdev_region(pewpew.dev, pewpew.count);
     printk(ERR "failed to cdev_add\n");
     return 0;
   }
