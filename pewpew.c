@@ -6,6 +6,7 @@
 #include <linux/slab.h>
 #include <linux/pci.h>
 #include <linux/aer.h>
+#include <linux/version.h>
 #include <asm/uaccess.h>
 MODULE_LICENSE("GPL");
 
@@ -21,6 +22,12 @@ const char pewpew_driver_name[] = MODULE_STR;
 #define DEV_82583V_LEDCTL_BLINK               (1 << 7)
 #define DEV_82583V_LEDCTL_LED0(X)             ((X) << 0)
 #define DEV_82583V_LEDCTL_LED1(X)             ((X) << 8)
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
+static inline void pci_release_mem_regions(struct pci_dev *pdev) {
+  return pci_release_selected_regions(pdev, pci_select_bars(pdev, IORESOURCE_MEM));
+}
+#endif
 
 int pewpew_open(struct inode *inode, struct file *flip);
 ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *offp);
