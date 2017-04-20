@@ -42,6 +42,7 @@ struct pewpew_dev {
   char name[255];
   struct cdev cdev;
   int syscall_val;
+  struct pci_dev *pdev;
   void *addr;
 };
 struct pewpew_dev pewpew;
@@ -80,21 +81,6 @@ int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
     return err;
   }
 
-  /*
-  pci_using_dac = 0;
-  err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
-  if (!err) {
-    pci_using_dac = 1;
-  } else {
-    err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
-		if (err) {
-			dev_err(&pdev->dev,
-					"No usable DMA configuration, aborting\n");
-			goto err_dma;
-		}
-  }
-  */
-
   bars = pci_select_bars(pdev, IORESOURCE_MEM);
   err = pci_request_selected_regions_exclusive(pdev, bars, pewpew_driver_name);
   if (err) {
@@ -124,6 +110,8 @@ int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
     goto err_ioremap;
   }
 
+  pewpew.pdev = pdev;
+
   /* Clear it all (probably bad) */
   *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)) = 0;
   /* Turn on LED0 */
@@ -149,9 +137,15 @@ err_pci_reg:
 }
 
 void pewpew_remove(struct pci_dev *pdev) {
-  iounmap(pewpew.addr);
-  pci_release_mem_regions(pdev);
-  pci_disable_device(pdev);
+  if (pdev != NULL) {
+    /* Clear it all (probably bad) */
+    *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)) = 0;
+    iounmap(pewpew.addr);
+    pci_release_mem_regions(pdev);
+    pci_disable_device(pdev);
+    pewpew.pdev = NULL;
+    pewpew.addr = NULL;
+  }
 }
 
 int pewpew_open(struct inode *inode, struct file *flip) {
@@ -266,6 +260,8 @@ static void __exit pewpew_exit(void) {
   cdev_del(&pewpew.cdev);
   /* Unregister our device number */
   unregister_chrdev_region(pewpew.dev, pewpew.count);
+  /* Unregister the PCI device */
+  pewpew_remove(pewpew.pdev);
   printk(INFO "Exited successfully\n");
 }
 
