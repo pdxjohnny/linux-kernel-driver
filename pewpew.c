@@ -4,6 +4,7 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/pci.h>
 #include <asm/uaccess.h>
 MODULE_LICENSE("GPL");
 
@@ -11,10 +12,19 @@ MODULE_LICENSE("GPL");
 #define INFO KERN_INFO MODULE_STR ": "
 #define ERR  KERN_ERR  MODULE_STR ": "
 
+#define DEV_82583V_LEDCTL                     0x00E00
+#define DEV_82583V_LEDCTL_MODE_ACTIVE         0x0E
+#define DEV_82583V_LEDCTL_BLINK_MODE          (1 << 5)
+#define DEV_82583V_LEDCTL_IVRT                (1 << 6)
+#define DEV_82583V_LEDCTL_BLINK               (1 << 7)
+#define DEV_82583V_LEDCTL_LED0(X)             ((X) << 0)
+#define DEV_82583V_LEDCTL_LED1(X)             ((X) << 8)
+
 int pewpew_open(struct inode *inode, struct file *flip);
 ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *offp);
 ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, loff_t *offp);
 int pewpew_release(struct inode *inode, struct file *filp);
+static int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
 
 struct pewpew_dev {
   dev_t dev;
@@ -22,8 +32,21 @@ struct pewpew_dev {
   char name[255];
   struct cdev cdev;
   int syscall_val;
+  void *addr;
 };
 struct pewpew_dev pewpew;
+
+static const struct pci_device_id pewpew_pci_tbl = {
+   { PCI_VDEVICE(0x8086, 0x150C), 4 },
+   { 0, 0, 0, 0, 0, 0, 0 }
+};
+
+static struct pci_driver pewpew_driver = {
+  .name     = MODULE_STR,
+  .id_table = pewpew_pci_tbl,
+  .probe    = pewpew_probe,
+  .remove   = pewpew_remove,
+};
 
 struct file_operations pewpew_fops = {
   .open = pewpew_open,
@@ -35,6 +58,99 @@ struct file_operations pewpew_fops = {
 static int syscall_val = 40;
 module_param(syscall_val, int, S_IRUSR|S_IWUSR);
 MODULE_PARM_DESC(syscall_val, "Initial value of syscall_val");
+
+static int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
+  int err;
+  err = pci_enable_device_mem(pdev);
+  if (err) {
+    printk(INFO "could not pci_enable_device_mem: %d\n", err);
+    return err;
+  }
+
+  pci_using_dac = 0;
+  err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+  if (!err) {
+    pci_using_dac = 1;
+  } else {
+    err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+		if (err) {
+			dev_err(&pdev->dev,
+					"No usable DMA configuration, aborting\n");
+			goto err_dma;
+		}
+  }
+
+  bars = pci_select_bars(pdev, IORESOURCE_MEM);
+  err = pci_request_selected_regions_exclusive(pdev, bars, MODULE_NAME);
+  if (err) {
+    printk(ERR "%d\n", err);
+    goto err_pci_reg;
+  }
+
+  /* AER (Advanced Error Reporting) hooks */
+  pci_enable_pcie_error_reporting(pdev);
+
+  pci_set_master(pdev);
+  /* PCI config space info */
+  err = pci_save_state(pdev);
+  if (err) {
+  }
+
+  if (!(pci_resource_flags(pdev, 1) & IORESOURCE_MEM)) {
+    printk(ERR "no IORESOURCE_MEM in pci_resource_flags\n");
+    return -EINVAL;
+  }
+
+  /* Map into memory */
+  flash_start = pci_resource_start(pdev, 1);
+  flash_len = pci_resource_len(pdev, 1);
+  printk(INFO "mapping %d of memory starting at %p\n",
+      flash_start, flash_len);
+  pewpew_dev->addr = ioremap(flash_start, flash_len);
+  if (!pewpew_dev->addr) {
+    printk(ERR "failed to setup memory mapped I/O with ioremap\n");
+    return -EINVAL;
+  }
+  /* Clear it all (probably bad) */
+  *((u32 *)(pewpew_dev->addr + DEV_82583V_LEDCTL)) = 0;
+  /* Turn on LED0 */
+  *((u32 *)(pewpew_dev->addr + DEV_82583V_LEDCTL)) |= (u32)(
+      DEV_82583V_LEDCTL_LED0(DEV_82583V_LEDCTL_MODE_ACTIVE|
+          DEV_82583V_LEDCTL_BLINK_MODE|DEV_82583V_LEDCTL_IVRT|
+          DEV_82583V_LEDCTL_BLINK));
+  /* Turn on LED1 */
+  *((u32 *)(mem + DEV_82583V_LEDCTL)) |= (u32)(
+      DEV_82583V_LEDCTL_LED1(DEV_82583V_LEDCTL_MODE_ACTIVE|
+          DEV_82583V_LEDCTL_BLINK_MODE|DEV_82583V_LEDCTL_IVRT|
+          DEV_82583V_LEDCTL_BLINK));
+  /* Display the new value */
+  printk(INFO "LEDCTL: %08x\n", *((u32 *)(mem + DEV_82583V_LEDCTL)));
+  return 0;
+
+err_register:
+  if (!(adapter->flags & FLAG_HAS_AMT))
+    e1000e_release_hw_control(adapter);
+err_eeprom:
+  if (hw->phy.ops.check_reset_block && !hw->phy.ops.check_reset_block(hw))
+    e1000_phy_hw_reset(&adapter->hw);
+err_hw_init:
+  kfree(adapter->tx_ring);
+  kfree(adapter->rx_ring);
+err_sw_init:
+  if ((adapter->hw.flash_address) && (hw->mac.type < e1000_pch_spt))
+    iounmap(adapter->hw.flash_address);
+  e1000e_reset_interrupt_capability(adapter);
+err_flashmap:
+  iounmap(adapter->hw.hw_addr);
+err_ioremap:
+  free_netdev(netdev);
+err_alloc_etherdev:
+  pci_release_mem_regions(pdev);
+err_pci_reg:
+err_dma:
+  pci_disable_device(pdev);
+  return err;
+}
 
 int pewpew_open(struct inode *inode, struct file *flip) {
 	flip->private_data = container_of(inode->i_cdev, struct pewpew_dev, cdev);
@@ -138,7 +254,8 @@ static int __init pewpew_init(void) {
     return 0;
   }
   printk(INFO "Initialized\n");
-  return 0;
+  printk(INFO "Registering pci driver\n");
+  return pci_register_driver(&pewpew_driver);
 }
 
 static void __exit pewpew_exit(void) {
