@@ -1,0 +1,51 @@
+Script started on Thu 20 Apr 2017 05:27:36 PM PDT
+pdxjohnny@ece373:~/ECE373$ lspci | grep Ethernet
+00:19.0 Ethernet controller: Intel Corporation 82567V-3 Gigabit Network Connection (rev 04)
+03:00.0 Ethernet controller: Intel Corporation 82583V Gigabit Network Connection
+pdxjohnny@ece373:~/ECE373$ echo 0000:03:00.0 | sudo tee /sys/module/e1000e/drivers/pci\:e1000e/unbind
+0000:03:00.0
+pdxjohnny@ece373:~/ECE373$ make all
+make -C /lib/modules/3.13.0-48-generic/build SUBDIRS=/home/pdxjohnny/ECE373 modules
+make[1]: Entering directory `/usr/src/linux-headers-3.13.0-48-generic'
+  CC [M]  /home/pdxjohnny/ECE373/pewpew.o
+  Building modules, stage 2.
+  MODPOST 1 modules
+  CC      /home/pdxjohnny/ECE373/pewpew.mod.o
+  LD [M]  /home/pdxjohnny/ECE373/pewpew.ko
+make[1]: Leaving directory `/usr/src/linux-headers-3.13.0-48-generic'
+gcc -o user user.c
+pdxjohnny@ece373:~/ECE373$ sudo bash -x loadmodule.sh
++ MODULE=pewpew
++ rmmod pewpew
+rmmod: ERROR: Module pewpew is not currently loaded
++ rm -f /dev/pewpew0
++ insmod pewpew.ko
+++ grep pewpew /proc/devices
+++ awk '{print $1}'
++ MAJOR=249
++ [[ 249 == '' ]]
++ mknod /dev/pewpew0 c 249 0
++ chmod 666 /dev/pewpew0
+pdxjohnny@ece373:~/ECE373$ ./user
+LEDCTL: 78406
+LEDCTL: ee
+LEDCTL: 0
+pdxjohnny@ece373:~/ECE373$ sudo rmmod pewpew
+pdxjohnny@ece373:~/ECE373$ dmesg | grep pewpew
+[ 2382.803669] pewpew: Initializing...
+[ 2382.803682] pewpew: Initialized
+[ 2382.803686] pewpew: Registering pci driver
+[ 2382.803971] pewpew: mapping 131072 of memory starting at 00000000febe0000
+[ 2382.804084] pewpew: LEDCTL: 00078406
+[ 2411.286129] pewpew: Read complete, LEDCTL is 78406
+[ 2411.286291] pewpew: Write complete, LEDCTL is ee
+[ 2411.286304] pewpew: Read complete, LEDCTL is ee
+[ 2413.286460] pewpew: Write complete, LEDCTL is 0
+[ 2413.286478] pewpew: Read complete, LEDCTL is 0
+[ 2462.819539] pewpew: Exiting...
+[ 2462.819755] pewpew: Exited successfully
+pdxjohnny@ece373:~/ECE373$ echo 0000:03:00.0 | sudo tee /sys/module/e1000e/drivers/pci\:e1000e/bind
+0000:03:00.0
+pdxjohnny@ece373:~/ECE373$ exit
+
+Script done on Thu 20 Apr 2017 05:31:03 PM PDT
