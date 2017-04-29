@@ -22,6 +22,10 @@ const char pewpew_driver_name[] = MODULE_STR;
 #define DEV_82583V_LEDCTL_BLINK               (1 << 7)
 #define DEV_82583V_LEDCTL_LED0(X)             ((X) << 0)
 #define DEV_82583V_LEDCTL_LED1(X)             ((X) << 8)
+#define LED0_ON     (u32)(\
+        DEV_82583V_LEDCTL_LED0(DEV_82583V_LEDCTL_MODE_ACTIVE|\
+            DEV_82583V_LEDCTL_IVRT))
+#define LEDCTL      (*((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)))
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
 static inline void pci_release_mem_regions(struct pci_dev *pdev) {
@@ -35,6 +39,7 @@ ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, l
 int pewpew_release(struct inode *inode, struct file *filp);
 int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
 void pewpew_remove(struct pci_dev *pdev);
+void pewpew_timer_callback(unsigned long unused);
 
 struct pewpew_dev {
   dev_t dev;
@@ -43,6 +48,7 @@ struct pewpew_dev {
   struct cdev cdev;
   struct pci_dev *pdev;
   void *addr;
+  struct timer_list timer;
 };
 struct pewpew_dev pewpew;
 
@@ -65,6 +71,12 @@ struct file_operations pewpew_fops = {
   .write = pewpew_write,
   .release = pewpew_release,
 };
+
+/* Default Blink Rate */
+#define DBL 2
+static int blink_rate = DBL;
+module_param(blink_rate, int, S_IRUSR|S_IWUSR);
+MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
 
 int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
   int bars, err;
@@ -107,8 +119,6 @@ int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
 
   /* Save the PCI device for later use */
   pewpew.pdev = pdev;
-  /* Display the value of LEDCTL */
-  printk(INFO "LEDCTL: %08x\n", *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)));
   return 0;
 
 err_ioremap:
@@ -121,7 +131,7 @@ err_pci_reg:
 
 void pewpew_remove(struct pci_dev *pdev) {
   /* Clear it all (probably bad) */
-  *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)) = 0;
+  LEDCTL &= ~(LED0_ON);
   iounmap(pewpew.addr);
   pci_release_mem_regions(pdev);
   pci_disable_device(pdev);
@@ -130,9 +140,22 @@ void pewpew_remove(struct pci_dev *pdev) {
 }
 
 int pewpew_open(struct inode *inode, struct file *flip) {
+  int err;
   /* Make sure we are connected to the PCI device */
   if (pewpew.pdev == NULL || pewpew.addr == NULL) {
     return -ENODEV;
+  }
+  // TODO start blinking on open
+  /* Setup the timer, no need to pass argument to callback because we
+   * are shamlessly using globals all over. */
+  setup_timer(&pewpew.timer, pewpew_timer_callback, 0);
+  /* Turn the LED on */
+  LEDCTL |= LED0_ON;
+  /* Start the timer */
+  err = mod_timer(&pewpew.timer,
+      jiffies + msecs_to_jiffies(500 / blink_rate));
+  if (err) {
+    printk(ERR "mod_timer gave error %d\n", err);
   }
 	return 0;
 }
@@ -141,10 +164,6 @@ ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *
   int err;
   char *kbuff;
   const unsigned int kbuff_size = 255;
-  /* Make sure we are connected to the PCI device */
-  if (pewpew.pdev == NULL || pewpew.addr == NULL) {
-    return -ENODEV;
-  }
   /* Make sure we got a buffer from userspace */
   if (buff == NULL) {
     printk(ERR "NULL buffer from userspace\n");
@@ -157,8 +176,8 @@ ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *
     printk(ERR "failed to allocate kernel buffer\n");
     return -ENOMEM;
   }
-  /* Format LEDCTL into the kernel buffer */
-  err = sprintf(kbuff, "%x", *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)));
+  /* Format blink_rate into the kernel buffer */
+  err = sprintf(kbuff, "%d", blink_rate);
   /* Make sure we don't write back a string larger than the receiving
    * buffer can hold */
   if (count < strnlen(kbuff, kbuff_size)) {
@@ -170,14 +189,18 @@ ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *
   copy_to_user(buff, kbuff, count);
   /* Free the kernel buffer */
   kfree(kbuff);
-  printk(INFO "Read complete, LEDCTL is %x\n", *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)));
+  printk(INFO "Read complete, blink_rate is %d\n", blink_rate);
+  /* Make sure we are connected to the PCI device */
+  if (pewpew.pdev == NULL || pewpew.addr == NULL) {
+    return -ENODEV;
+  }
   /* Return length of the string written back */
   return count;
 }
 
 ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, loff_t *offp) {
   int err;
-  u32 led_val;
+  int tmp;
   char *kbuff;
   /* Make sure we are connected to the PCI device */
   if (pewpew.pdev == NULL || pewpew.addr == NULL) {
@@ -198,24 +221,57 @@ ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, l
   /* Copy the contents of the user buffer to the kernel buffer */
   copy_from_user(kbuff, buff, (sizeof(*buff) * count) + 1);
   kbuff[sizeof(*buff) * count] = '\0';
-  /* Parse the kernel buffer into led_val */
-  err = kstrtoint(kbuff, 16, &led_val);
-  /* Set LEDCTL to 32-bit led_val */
-  *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)) = led_val;
+  /* Parse the kernel buffer into tmp */
+  err = kstrtoint(kbuff, 10, &tmp);
   /* Free the kernel buffer */
   kfree(kbuff);
-  /* Check if parse was successful */
-  if (err < 0) {
-    printk(ERR "failed to parse integer\n");
+  /* Check if parse was successful and tmp is postive */
+  if (err < 0 || tmp <= 0) {
+    printk(ERR "failed to parse integer or negative\n");
     return -EINVAL;
   }
-  printk(INFO "Write complete, LEDCTL is %x\n", *((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)));
+  blink_rate = tmp;
+  printk(INFO "Write complete, blink_rate is %d\n", blink_rate);
   /* Return length that was given on success */
   return count;
 }
 
 int pewpew_release(struct inode *inode, struct file *filp) {
+  /* Make sure we are connected to the PCI device */
+  if (pewpew.pdev == NULL || pewpew.addr == NULL) {
+    return -ENODEV;
+  }
+  /* Remove the timer */
+  del_timer_sync(&pewpew.timer);
+  /* Turn off the LEDs */
+  LEDCTL &= ~(LED0_ON);
   return 0;
+}
+
+void pewpew_timer_callback(unsigned long unused) {
+  int err;
+  /* Make sure blink_rate is valid */
+  if (blink_rate <= 0) {
+    printk(ERR "blink_rate has been set to %d which is invalid."
+       " It has been reset to the default of %d\n", blink_rate, DBL);
+    blink_rate = DBL;
+  }
+  /* Turn on or off the LED depending on where we are in the cycle */
+  if ((LEDCTL & LED0_ON) == LED0_ON) {
+    /* LED is on need to turn off */
+    printk(INFO "LED is on turning off\n");
+    LEDCTL &= ~(LED0_ON);
+  } else {
+    /* LED is off need to turn on */
+    printk(INFO "LED is off turning on\n");
+    LEDCTL |= LED0_ON;
+  }
+  /* Turn the timer on */
+  err = mod_timer(&pewpew.timer,
+      jiffies + msecs_to_jiffies(500 / blink_rate));
+  if (err) {
+    printk(ERR "mod_timer gave error %d\n", err);
+  }
 }
 
 static int __init pewpew_init(void) {
@@ -249,6 +305,8 @@ static int __init pewpew_init(void) {
 
 static void __exit pewpew_exit(void) {
   printk(INFO "Exiting...\n");
+  /* Remove the timer */
+  del_timer_sync(&pewpew.timer);
   /* Remove our character device */
   cdev_del(&pewpew.cdev);
   /* Unregister our device number */
