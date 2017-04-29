@@ -7,24 +7,77 @@ documentation for this little computer. Download it for your
 reference, and review it.
 
 a) what is the audio device?
-
     Realtek ALC888
 
-
 b) what device is the GPIO connected to?
-
     Super IO Winbond W83627DHG
-
 
 c) how many network (LAN) devices are on the motherboard and what are
 they?
-
     Two Intel devices
     1. GbE LAN1: Intel 82567V
     2. GbE LAN2: Intel 82583V
 
-
 d) how many total serial ports does the box support, inside and out?
-
     Six serial ports, COM2 is RS-232/422/485 and five of RS-232
-      serial ports (1.3.3)
+    serial ports (1.3.3)
+
+
+2. Network Noodling
+  Since the experimental boxes are not connected to
+the university network, the network devices are going unused (one
+port is plugged into the CAT network, but that's only for us to
+rebuild the boxes if Atomic lives up to its name – it can be
+disconnected).  Later in this assignment we will explore how to play
+with them, but first we need some information about how they work.
+Find the datasheet for the LAN device connected through PCIe (not
+through the integrated chip's LCI), and download it for your
+reference.  The Pin Interface chapter tells how to physically connect
+to the chip.  The Driver Programming Interface chapter tells about
+the memory-mapped registers – what are their addresses and what bit
+patterns are used to do things.  From the datasheet:
+
+a) What pins control the LEDs?
+  LED0 - 31
+  LED1 - 30
+  LED2 - 33
+
+b) What address offset is the Device Control Register?
+  0x0
+
+c) What bit in the Device Control Register will force a reset of the
+network chip?
+  26
+
+
+3. Winken, Blinken, and Nod
+  Without any other wires or connectors needed, we can use the LEDs
+on the network devices as our little toys.  There are many ways to
+set up the LEDs for blinking and for indicating various states in the
+chip, so the description is spread across several pages.
+
+a) What register (name and address) controls the LEDs?
+  LEDCTL - 0x00E00
+
+b) What bit pattern should you use to turn off LED1?
+  0xXXXXXFXX <- X is don't care, anything
+
+c) What bit pattern should you use to make LED2 blink?
+  0xXXEEXX20 <- Set global blink mode and blink mode to the same
+
+
+4. EIEIO
+  The Super I/O chip is designed to be responsible for handling many
+different duties in a standard PC computer. It is a pretty standard
+design, but a data sheet is still needed, especially if you want to
+know how to control the GPIO pins.
+
+a) what company makes the Super I/O chip in this box?
+  Nuvoton Technology Corporation of America
+
+b) can you find the datasheet on the web?
+  http://www.nuvoton.com/resource-files/DA00-WW83627DHG-P.pdf
+
+c) where/how can you find this chip's datasheet if you aren't able to
+find it with a standard web search?
+  Perhaps it would be in a book of datasheets the library would have
