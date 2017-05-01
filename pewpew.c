@@ -27,7 +27,7 @@ const char pewpew_driver_name[] = MODULE_STR;
             DEV_82583V_LEDCTL_IVRT))
 #define LEDCTL      (*((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)))
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,8,0)
 static inline void pci_release_mem_regions(struct pci_dev *pdev) {
   return pci_release_selected_regions(pdev, pci_select_bars(pdev, IORESOURCE_MEM));
 }
