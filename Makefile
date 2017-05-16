@@ -9,6 +9,7 @@ all: default
 default:
 	$(MAKE) -C $(KERNEL_DIR) SUBDIRS=$(PWD) modules
 	gcc -o user user.c
+	gcc -o mmap mmap.c -lpci
 
 clean:
 	$(MAKE) -C $(KERNEL_DIR) SUBDIRS=$(PWD) clean

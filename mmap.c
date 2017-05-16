@@ -19,14 +19,15 @@
 #define DEV_82583V_LEDCTL_LED2(X)             ((X) << 16)
 
 #define VENDOR_ID                             0x8086
-#define DEVICE_ID                             0x8C16
+#define DEVICE_ID                             0x1501
 
 int main() {
   struct pci_access *pacc;
   struct pci_dev *dev;
   unsigned int c;
   int fd, i;
-  uint32_t *mem, ledctl;
+  void *mem;
+  uint32_t ledctl;
   long base = 0, size = 0;
   char namebuf[1024], *name;
 
@@ -53,58 +54,52 @@ int main() {
     perror("Error opening /dev/mem");
     return EXIT_FAILURE;
   }
-  /* Map 128K at the address provided by `lspci -s 03:00.0 -v` */
+  /* Use the information we got from libpci (base and size) to map */
   mem = mmap(NULL, size, PROT_READ|PROT_WRITE,
       MAP_SHARED, fd, base);
   if (mem == MAP_FAILED) {
     perror("Error mmaping /dev/mem");
     return EXIT_FAILURE;
   }
-  /* Save the currect LEDCTL value */
+  /* Save the current LEDCTL value */
   ledctl = *((uint32_t *)(mem + DEV_82583V_LEDCTL));
   /* Print it for the user to read */
   printf("LEDCTL: %08x\n", ledctl);
-  /* Turn both green LEDs on for 2 seconds */
-  *((uint32_t *)(mem + DEV_82583V_LEDCTL)) &= ~(0xFFFFFF);
-  /* Turn on LED0 */
-  *((uint32_t *)(mem + DEV_82583V_LEDCTL)) |= (uint32_t)(
+  /* Turn both green LEDs (LED0 and LED2) on for 2 seconds */
+  *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
       DEV_82583V_LEDCTL_LED0(DEV_82583V_LEDCTL_MODE_ACTIVE|
-          DEV_82583V_LEDCTL_IVRT));
-  /* Turn on LED2 */
-  *((uint32_t *)(mem + DEV_82583V_LEDCTL)) |= (uint32_t)(
+          DEV_82583V_LEDCTL_IVRT)|
       DEV_82583V_LEDCTL_LED2(DEV_82583V_LEDCTL_MODE_ACTIVE|
-          DEV_82583V_LEDCTL_IVRT));
+          DEV_82583V_LEDCTL_IVRT)
+      );
   sleep(2);
   /* Turn all LEDs off for 2 seconds */
-  *((uint32_t *)(mem + DEV_82583V_LEDCTL)) &= ~(0xFFFFFF);
+  *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = 0;
   sleep(2);
   /* Loop 5 times and turn each LED (amber, green on right, green on
    * left) on for 1 second */
   for (i = 0; i < 5; ++i) {
     /* Turn on LED1 amber */
-    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) |= (uint32_t)(
+    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
         DEV_82583V_LEDCTL_LED1(DEV_82583V_LEDCTL_MODE_ACTIVE|
             DEV_82583V_LEDCTL_IVRT));
-    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) &= ~(DEV_82583V_LEDCTL_LED1(0xFF));
     sleep(1);
     /* Turn on LED0 green on right */
-    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) |= (uint32_t)(
+    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
         DEV_82583V_LEDCTL_LED0(DEV_82583V_LEDCTL_MODE_ACTIVE|
             DEV_82583V_LEDCTL_IVRT));
-    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) &= ~(DEV_82583V_LEDCTL_LED0(0xFF));
     sleep(1);
     /* Turn on LED2 green on left */
-    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) |= (uint32_t)(
+    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
         DEV_82583V_LEDCTL_LED2(DEV_82583V_LEDCTL_MODE_ACTIVE|
             DEV_82583V_LEDCTL_IVRT));
-    *((uint32_t *)(mem + DEV_82583V_LEDCTL)) &= ~(DEV_82583V_LEDCTL_LED2(0xFF));
     sleep(1);
   }
   /* Restore LEDCTL to initial value */
   *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = ledctl;
   /* Read and print the contents of the Good Packets Received
    * statistics register */
-  printf("Good Packets Received: %08x\n", *((uint32_t *)(mem + DEV_82583V_GOOD_PACKETS_RECEIVED)));
+  printf("Good Packets Received: %d\n", *((uint32_t *)(mem + DEV_82583V_GOOD_PACKETS_RECEIVED)));
   /* Unmap /dev/mem */
   munmap(mem, size);
   /* Close /dev/mem */
