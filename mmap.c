@@ -17,12 +17,12 @@
 #define DEV_82583V_LEDCTL_LED0(X)             ((X) << 0)
 #define DEV_82583V_LEDCTL_LED1(X)             ((X) << 8)
 #define DEV_82583V_LEDCTL_LED2(X)             ((X) << 16)
-#define GREEN_LEFT(X)                         DEV_82583V_LEDCTL_LED2(X)
-#define AMBER_LEFT(X)                         DEV_82583V_LEDCTL_LED0(X)
-#define GREEN_RIGHT(X)                        DEV_82583V_LEDCTL_LED1(X)
+#define GREEN_LEFT(X)                         DEV_82583V_LEDCTL_LED1(X)
+#define AMBER_LEFT(X)                         DEV_82583V_LEDCTL_LED2(X)
+#define GREEN_RIGHT(X)                        DEV_82583V_LEDCTL_LED0(X)
 
 #define VENDOR_ID                             0x8086
-#define DEVICE_ID                             0x150C
+#define DEVICE_ID                             0x1501
 
 int main() {
   struct pci_access *pacc;
@@ -70,10 +70,8 @@ int main() {
   printf("LEDCTL: %08x\n", ledctl);
   /* Turn both green LEDs (LED0 and LED2) on for 2 seconds */
   *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-      GREEN_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE|
-        DEV_82583V_LEDCTL_IVRT)|
-      GREEN_RIGHT(DEV_82583V_LEDCTL_MODE_ACTIVE|
-        DEV_82583V_LEDCTL_IVRT)
+      GREEN_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE)|
+      GREEN_RIGHT(DEV_82583V_LEDCTL_MODE_ACTIVE)
       );
   sleep(2);
   /* Turn all LEDs off for 2 seconds */
@@ -84,18 +82,15 @@ int main() {
   for (i = 0; i < 5; ++i) {
     /* Turn on LED1 amber */
     *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-        AMBER_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE|
-            DEV_82583V_LEDCTL_IVRT));
+        AMBER_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE));
     sleep(1);
     /* Turn on LED0 green on right */
     *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-        GREEN_RIGHT(DEV_82583V_LEDCTL_MODE_ACTIVE|
-            DEV_82583V_LEDCTL_IVRT));
+        GREEN_RIGHT(DEV_82583V_LEDCTL_MODE_ACTIVE));
     sleep(1);
     /* Turn on LED2 green on left */
     *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-        GREEN_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE|
-            DEV_82583V_LEDCTL_IVRT));
+        GREEN_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE));
     sleep(1);
   }
   /* Restore LEDCTL to initial value */

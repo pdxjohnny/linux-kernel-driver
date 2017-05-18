@@ -13,7 +13,7 @@ default:
 
 clean:
 	$(MAKE) -C $(KERNEL_DIR) SUBDIRS=$(PWD) clean
-	rm -f user
+	rm -f user mmap
 
 load: default
 	sudo ./loadmodule.sh

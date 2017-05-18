@@ -1,0 +1,7 @@
+Note that you won't need to unload the existing kernel network driver
+to run this program.  Give a short explain what this might imply.
+
+  Because we don't have to unload the existing kernel driver this
+means we could use a userspace driver to work with a kernel driver.
+Or have multiple userspace drivers all working on hardware. Or we
+could sabotage a driver.

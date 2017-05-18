@@ -1,0 +1,13 @@
+Script started on Thu 18 May 2017 04:11:40 AM PDT
+pdxjohnny@ece373:~/ECE373$ sudo ./mmap
+LEDCTL: 00060784
+Good Packets Received: 3
+pdxjohnny@ece373:~/ECE373$ sudo ./mmap
+LEDCTL: 00060784
+Good Packets Received: 2
+pdxjohnny@ece373:~/ECE373$ sudo ./mmap
+LEDCTL: 00060784
+Good Packets Received: 0
+pdxjohnny@ece373:~/ECE373$ exit
+
+Script done on Thu 18 May 2017 04:16:07 AM PDT
