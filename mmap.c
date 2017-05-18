@@ -22,13 +22,14 @@
 #define GREEN_RIGHT(X)                        DEV_82583V_LEDCTL_LED1(X)
 
 #define VENDOR_ID                             0x8086
-#define DEVICE_ID                             0x1501
+#define DEVICE_ID                             0x150C
 
 int main() {
   struct pci_access *pacc;
   struct pci_dev *dev;
   unsigned int c;
-  int i;
+  int fd, i;
+  void *mem;
   uint32_t ledctl;
   long base = 0, size = 0;
   char namebuf[1024], *name;
@@ -51,13 +52,13 @@ int main() {
     return EXIT_FAILURE;
   }
   /* Open /dev/mem */
-  int fd = open("/dev/mem", O_RDWR|O_SYNC);
+  fd = open("/dev/mem", O_RDWR|O_SYNC);
   if (fd < 0) {
     perror("Error opening /dev/mem");
     return EXIT_FAILURE;
   }
   /* Use the information we got from libpci (base and size) to map */
-  void *mem = mmap(NULL, size, PROT_READ|PROT_WRITE,
+  mem = mmap(NULL, size, PROT_READ|PROT_WRITE,
       MAP_SHARED, fd, base);
   if (mem == MAP_FAILED) {
     perror("Error mmaping /dev/mem");
