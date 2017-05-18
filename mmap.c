@@ -17,6 +17,9 @@
 #define DEV_82583V_LEDCTL_LED0(X)             ((X) << 0)
 #define DEV_82583V_LEDCTL_LED1(X)             ((X) << 8)
 #define DEV_82583V_LEDCTL_LED2(X)             ((X) << 16)
+#define GREEN_LEFT(X)                         DEV_82583V_LEDCTL_LED2(X)
+#define AMBER_LEFT(X)                         DEV_82583V_LEDCTL_LED0(X)
+#define GREEN_RIGHT(X)                        DEV_82583V_LEDCTL_LED1(X)
 
 #define VENDOR_ID                             0x8086
 #define DEVICE_ID                             0x1501
@@ -25,8 +28,7 @@ int main() {
   struct pci_access *pacc;
   struct pci_dev *dev;
   unsigned int c;
-  int fd, i;
-  void *mem;
+  int i;
   uint32_t ledctl;
   long base = 0, size = 0;
   char namebuf[1024], *name;
@@ -49,13 +51,13 @@ int main() {
     return EXIT_FAILURE;
   }
   /* Open /dev/mem */
-  fd = open("/dev/mem", O_RDWR|O_SYNC);
+  int fd = open("/dev/mem", O_RDWR|O_SYNC);
   if (fd < 0) {
     perror("Error opening /dev/mem");
     return EXIT_FAILURE;
   }
   /* Use the information we got from libpci (base and size) to map */
-  mem = mmap(NULL, size, PROT_READ|PROT_WRITE,
+  void *mem = mmap(NULL, size, PROT_READ|PROT_WRITE,
       MAP_SHARED, fd, base);
   if (mem == MAP_FAILED) {
     perror("Error mmaping /dev/mem");
@@ -67,10 +69,10 @@ int main() {
   printf("LEDCTL: %08x\n", ledctl);
   /* Turn both green LEDs (LED0 and LED2) on for 2 seconds */
   *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-      DEV_82583V_LEDCTL_LED0(DEV_82583V_LEDCTL_MODE_ACTIVE|
-          DEV_82583V_LEDCTL_IVRT)|
-      DEV_82583V_LEDCTL_LED2(DEV_82583V_LEDCTL_MODE_ACTIVE|
-          DEV_82583V_LEDCTL_IVRT)
+      GREEN_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE|
+        DEV_82583V_LEDCTL_IVRT)|
+      GREEN_RIGHT(DEV_82583V_LEDCTL_MODE_ACTIVE|
+        DEV_82583V_LEDCTL_IVRT)
       );
   sleep(2);
   /* Turn all LEDs off for 2 seconds */
@@ -81,17 +83,17 @@ int main() {
   for (i = 0; i < 5; ++i) {
     /* Turn on LED1 amber */
     *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-        DEV_82583V_LEDCTL_LED1(DEV_82583V_LEDCTL_MODE_ACTIVE|
+        AMBER_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE|
             DEV_82583V_LEDCTL_IVRT));
     sleep(1);
     /* Turn on LED0 green on right */
     *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-        DEV_82583V_LEDCTL_LED0(DEV_82583V_LEDCTL_MODE_ACTIVE|
+        GREEN_RIGHT(DEV_82583V_LEDCTL_MODE_ACTIVE|
             DEV_82583V_LEDCTL_IVRT));
     sleep(1);
     /* Turn on LED2 green on left */
     *((uint32_t *)(mem + DEV_82583V_LEDCTL)) = (uint32_t)(
-        DEV_82583V_LEDCTL_LED2(DEV_82583V_LEDCTL_MODE_ACTIVE|
+        GREEN_LEFT(DEV_82583V_LEDCTL_MODE_ACTIVE|
             DEV_82583V_LEDCTL_IVRT));
     sleep(1);
   }
