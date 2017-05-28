@@ -335,7 +335,7 @@ int pewpew_init_device(struct pci_dev *pdev) {
    * transmit interrupts.
    */
   printk(INFO "IMS is: %08x\n", IMS);
-  IMS = 0xffffffff ^ ~((1 << IMS_RXT)|(1 << IMS_RXO)|(1 << IMS_RXDMT)|(1 << IMS_LSC));
+  IMS = ((1 << IMS_RXT)|(1 << IMS_RXO)|(1 << IMS_RXDMT)|(1 << IMS_LSC));
   printk(INFO "IMS is: %08x\n", IMS);
   return err;
 }
