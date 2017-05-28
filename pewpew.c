@@ -161,6 +161,19 @@ MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
 
 static void pewpew_work_handler(struct work_struct *work) {
   printk(INFO "worker: pewpew.icr is %08x\n", pewpew.icr);
+  printk(INFO "worker: ICR is %08x\n", ICR);
+  if (pewpew.icr & (1 << IMS_RXT)) {
+    printk(INFO "worker: RXT: Receiver Timer Interrupt\n");
+  }
+  if (pewpew.icr & (1 << IMS_RXO)) {
+    printk(INFO "worker: RXO: Receiver Overrun\n");
+  }
+  if (pewpew.icr & (1 << IMS_RXDMT)) {
+    printk(INFO "worker: RXDMT: Receive Descriptor minimum threshold hit\n");
+  }
+  if (pewpew.icr & (1 << IMS_LSC)) {
+    printk(INFO "worker: LSC: Link Status Change\n");
+  }
 }
 
 int pewpew_init_ring(struct pci_dev *pdev, struct d_wrap **r,
