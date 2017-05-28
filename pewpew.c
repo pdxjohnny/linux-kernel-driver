@@ -7,6 +7,8 @@
 #include <linux/pci.h>
 #include <linux/aer.h>
 #include <linux/version.h>
+#include <linux/delay.h>
+#include <linux/vmalloc.h>
 #include <asm/uaccess.h>
 MODULE_LICENSE("GPL");
 
@@ -15,17 +17,55 @@ MODULE_LICENSE("GPL");
 #define ERR  KERN_ERR  MODULE_STR ": "
 const char pewpew_driver_name[] = MODULE_STR;
 
-#define DEV_82583V_LEDCTL                     0x00E00
-#define DEV_82583V_LEDCTL_MODE_ACTIVE         0x0E
-#define DEV_82583V_LEDCTL_BLINK_MODE          (1 << 5)
-#define DEV_82583V_LEDCTL_IVRT                (1 << 6)
-#define DEV_82583V_LEDCTL_BLINK               (1 << 7)
-#define DEV_82583V_LEDCTL_LED0(X)             ((X) << 0)
-#define DEV_82583V_LEDCTL_LED1(X)             ((X) << 8)
-#define LED0_ON     (u32)(\
-        DEV_82583V_LEDCTL_LED0(DEV_82583V_LEDCTL_MODE_ACTIVE|\
-            DEV_82583V_LEDCTL_IVRT))
-#define LEDCTL      (*((u32 *)(pewpew.addr + DEV_82583V_LEDCTL)))
+/* CTRL */
+#define CTRL        (*((u32 *)(pewpew.addr + 0x00000)))
+#define CTRL_FD                     0
+#define CTRL_GIO_MASTER_DISABLE     2
+#define CTRL_ASDE                   5
+#define CTRL_SLU                    6
+#define CTRL_SPEED                  8
+#define CTRL_FRCSPD                 11
+#define CTRL_FRCDPLX                12
+#define CTRL_RST                    26
+#define CTRL_RFCE                   27
+#define CTRL_TFCE                   28
+#define CTRL_PHY_RST                31
+/* STATUS 9.2.2.2 */
+#define STATUS      (*((u32 *)(pewpew.addr + 0x00008)))
+/* IMS */
+#define IMS         (*((u32 *)(pewpew.addr + 0x000D0)))
+/* IMC */
+#define IMC         (*((u32 *)(pewpew.addr + 0x000D8)))
+/* GCR */
+#define GCR         (*((u32 *)(pewpew.addr + 0x05B00)))
+#define GCR2        (*((u32 *)(pewpew.addr + 0x05B2C)))
+/* MDIC */
+#define MDIC        (*((u32 *)(pewpew.addr + 0x00020)))
+/* Send and receive */
+#define RCTL        (*((u32 *)(pewpew.addr + 0x00100)))
+#define RCTL_EN                    1
+#define RDBAL       (*((u32 *)(pewpew.addr + 0x02800)))
+#define RDBAH       (*((u32 *)(pewpew.addr + 0x02804)))
+#define RDLEN       (*((u32 *)(pewpew.addr + 0x02808)))
+#define RDH         (*((u32 *)(pewpew.addr + 0x02810)))
+#define RDT         (*((u32 *)(pewpew.addr + 0x02818)))
+#define TCTL        (*((u32 *)(pewpew.addr + 0x00400)))
+#define TCTL_EN                    1
+#define TCTL_CT                    4
+#define TDBAL       (*((u32 *)(pewpew.addr + 0x03800)))
+#define TDBAH       (*((u32 *)(pewpew.addr + 0x03804)))
+#define TDLEN       (*((u32 *)(pewpew.addr + 0x03808)))
+#define TDH         (*((u32 *)(pewpew.addr + 0x03810)))
+#define TDT         (*((u32 *)(pewpew.addr + 0x03818))
+/* LEDCTL */
+#define LEDCTL      (*((u32 *)(pewpew.addr + 0x00E00)))
+#define LEDCTL_MODE_ACTIVE         0x0E
+#define LEDCTL_BLINK_MODE          (1 << 5)
+#define LEDCTL_IVRT                (1 << 6)
+#define LEDCTL_BLINK               (1 << 7)
+#define LEDCTL_LED0(X)             ((X) << 0)
+#define LEDCTL_LED1(X)             ((X) << 8)
+#define LED0_ON     (u32)(LEDCTL_LED0(LEDCTL_MODE_ACTIVE|LEDCTL_IVRT))
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,8,0)
 static inline void pci_release_mem_regions(struct pci_dev *pdev) {
@@ -41,6 +81,32 @@ int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
 void pewpew_remove(struct pci_dev *pdev);
 void pewpew_timer_callback(unsigned long unused);
 
+#define NUM_DESC                      16
+#define DESC_STATUS_DD                0
+#define DESC_STATUS_EOP               1
+#define DESC_STATUS_VP                3
+#define DESC_STATUS_UDPCS             4
+#define DESC_STATUS_TCPCS             5
+#define DESC_STATUS_IPCS              6
+#define DESC_ERROR_CE                 0
+#define DESC_ERROR_SE                 1
+#define DESC_ERROR_SEQ                2
+#define DESC_ERROR_CXE                4
+#define DESC_ERROR_TCPE               5
+#define DESC_ERROR_IPE                6
+struct desc {
+  __le64  dma_buf;
+  __le16  length;
+  __le16  checksum;
+  u8      status;
+  u8      error;
+  __le16  vlan;
+};
+struct d_wrap {
+  struct desc *d;
+  void *buf;
+};
+
 struct pewpew_dev {
   dev_t dev;
   unsigned int count;
@@ -49,6 +115,10 @@ struct pewpew_dev {
   struct pci_dev *pdev;
   void *addr;
   struct timer_list timer;
+  struct d_wrap *rx_ring;
+  struct d_wrap *tx_ring;
+  dma_addr_t rx_dma_addr;
+  dma_addr_t tx_dma_addr;
 };
 struct pewpew_dev pewpew;
 
@@ -78,14 +148,165 @@ static int blink_rate = DBL;
 module_param(blink_rate, int, S_IRUSR|S_IWUSR);
 MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
 
+int pewpew_init_ring(struct pci_dev *pdev, struct d_wrap **r,
+    dma_addr_t *dma_addr) {
+  int i = 0;
+  struct desc *dma_ring;
+  struct d_wrap *ring;
+
+  ring = vmalloc(sizeof(struct d_wrap) * NUM_DESC);
+  if (!ring) {
+    goto d_wrap_fail;
+  }
+  *r = ring;
+
+  dma_ring = dma_alloc_coherent(&pdev->dev,
+      sizeof(struct desc) * NUM_DESC, dma_addr, GFP_KERNEL);
+  if (!dma_ring) {
+    goto dma_ring_fail;
+  }
+
+  for (i = 0; i < NUM_DESC; ++i) {
+    ring[i].d = &(dma_ring[i]);
+    ring[i].buf = dma_alloc_coherent(&pdev->dev,
+        2048, &ring[i].d->dma_buf, GFP_KERNEL);
+    ring[i].d->dma_buf = cpu_to_le64(ring[i].d->dma_buf);
+    if (!ring[i].buf) {
+      goto desc_fail;
+    }
+  }
+  return 0;
+
+desc_fail:
+  for (--i; i >= 0; --i) {
+    dma_free_coherent(&pdev->dev, 2048,
+        ring[i].buf, ring[i].d->dma_buf);
+  }
+  dma_free_coherent(&pdev->dev, sizeof(struct desc) * NUM_DESC,
+      ring[0].d, *dma_addr);
+dma_ring_fail:
+  vfree(ring);
+d_wrap_fail:
+  *r = NULL;
+  return -ENOMEM;
+}
+
+void pewpew_free_ring(struct pci_dev *pdev, struct d_wrap **r,
+    dma_addr_t *dma_addr) {
+  int i;
+  struct d_wrap *ring = *r;
+  for (i = NUM_DESC; i >= 0; --i) {
+    dma_free_coherent(&pdev->dev, 2048,
+        ring[i].buf, ring[i].d->dma_buf);
+  }
+  dma_free_coherent(&pdev->dev, sizeof(struct desc) * NUM_DESC,
+      ring[0].d, *dma_addr);
+  vfree(ring);
+  *r = NULL;
+}
+
+int pewpew_init_device(struct pci_dev *pdev) {
+  int err;
+  /* Steps to initialize device (from data sheet 4.6)
+   * 1. Disable Interrupts
+   * 2. Issue Global Reset and preform General Configuration
+   * 3. Setup the PHY and link
+   * 4. Initialize all statistical counters
+   * 5. Initialize Receive
+   * 6. Initialize Transmit
+   * 7. Enable Interrupts
+   */
+  /* 1. Disable Interrupts */
+  IMC = 0xFFFFFFFF;
+  /* 2. Global Reset and General Configuration */
+  CTRL |= (1 << CTRL_RST);
+  /* Make sure PHY has been reset. */
+  msleep(50);
+  /* We reset so we need to disable interrupts again. */
+  IMC = 0xFFFFFFFF;
+  /* GCR bit 22 should be set to 1b by software during
+   * initialization.
+   */
+  GCR |= (1 << 22);
+  GCR2 |= (1 << 0);
+  /* Call upon the magic of the old gods raise the PHY from death */
+  MDIC = 0x1831af08;
+  /* 5. Receive Initialization */
+  /* Program the receive address register per the station address.
+   * This can come from the NVM or from any other means, for example,
+   * on some systems, this comes from the system EEPROM not the NVM
+   * on a Network Interface Card (NIC).
+   */
+  err = pewpew_init_ring(pdev, &pewpew.rx_ring, &pewpew.rx_dma_addr);
+  if (err) {
+    return err;
+  }
+  err = pewpew_init_ring(pdev, &pewpew.tx_ring, &pewpew.tx_dma_addr);
+  if (err) {
+    return err;
+  }
+  /* Program RCTL with appropriate values. If initializing it at this
+   * stage, it is best to leave the receive logic disabled (EN = 0b)
+   * until the receive descriptor ring has been initialized. If VLANs
+   * are not used, software should clear the VFE bit. Then there is
+   * no need to initialize the VFTA array. Select the receive
+   * descriptor type. Note that if using the header split RX
+   * descriptors, tail and head registers should be incremented by
+   * two per descriptor.
+   */
+  /* 5.1 Initialize the Receive Control Register */
+  /* To properly receive packets requires simply that the receiver is
+   * enabled. This should be
+   * done only after all other setup is accomplished. If software
+   * uses the Receive Descriptor
+   * Minimum Threshold Interrupt, that value should be set.
+   */
+  /* Allocate a region of memory for the receive descriptor list.
+   */
+  /* Receive buffers of appropriate size should be allocated and
+   * pointers to these buffers should be stored in the descriptor
+   * ring.
+   */
+  /* Program the descriptor base address with the address of the
+   * region.
+   */
+  /* Set the length register to the size of the descriptor ring.
+   */
+  /* If needed, program the head and tail registers. Note: the head
+   * and tail pointers are initialized (by hardware) to zero after a
+   * power-on or a software-initiated device reset.
+   */
+  /* The tail pointer should be set to point one descriptor beyond
+   * the end.
+   */
+  /* Program the interrupt mask register to pass any interrupt that
+   * the software device driver cares about. Suggested bits include
+   * RXT, RXO, RXDMT and LSC. There is no reason to enable the
+   * transmit interrupts.
+   */
+  return err;
+}
+
 int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
-  int bars, err;
+  int bars, err, pci_using_dac;
   resource_size_t mmio_start, mmio_len;
 
   err = pci_enable_device_mem(pdev);
   if (err) {
     printk(INFO "could not pci_enable_device_mem: %d\n", err);
     return err;
+  }
+
+  pci_using_dac = 0;
+  err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+  if (!err) {
+    pci_using_dac = 1;
+  } else {
+    err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+    if (err) {
+      printk(ERR "No usable DMA configuration, aborting\n");
+      goto err_dma;
+    }
   }
 
   bars = pci_select_bars(pdev, IORESOURCE_MEM);
@@ -119,12 +340,15 @@ int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
 
   /* Save the PCI device for later use */
   pewpew.pdev = pdev;
-  return 0;
+
+  /* Initialize device as called for by 82583V datasheet 4.6 */
+  return pewpew_init_device(pdev);
 
 err_ioremap:
   iounmap(pewpew.addr);
   pci_release_mem_regions(pdev);
 err_pci_reg:
+err_dma:
   pci_disable_device(pdev);
   return err;
 }
@@ -132,6 +356,8 @@ err_pci_reg:
 void pewpew_remove(struct pci_dev *pdev) {
   /* Clear it all (probably bad) */
   LEDCTL &= ~(LED0_ON);
+  pewpew_free_ring(pdev, &pewpew.rx_ring, &pewpew.rx_dma_addr);
+  pewpew_free_ring(pdev, &pewpew.tx_ring, &pewpew.tx_dma_addr);
   iounmap(pewpew.addr);
   pci_release_mem_regions(pdev);
   pci_disable_device(pdev);

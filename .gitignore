@@ -1,2 +1,13 @@
 *.o
 *.swp
+.pewpew.ko.cmd
+.pewpew.mod.o.cmd
+.pewpew.o.cmd
+.tmp_versions/
+Module.symvers
+mmap
+modules.order
+pewpew.ko
+pewpew.mod.c
+tags
+user
