@@ -9,6 +9,7 @@
 #include <linux/version.h>
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
+#include <linux/interrupt.h>
 #include <asm/uaccess.h>
 MODULE_LICENSE("GPL");
 
@@ -34,8 +35,16 @@ const char pewpew_driver_name[] = MODULE_STR;
 #define STATUS      (*((u32 *)(pewpew.addr + 0x00008)))
 /* IMS */
 #define IMS         (*((u32 *)(pewpew.addr + 0x000D0)))
+#define IMS_LSC                     2
+#define IMS_RXDMT                   4
+#define IMS_RXO                     6
+#define IMS_RXT                     7
 /* IMC */
 #define IMC         (*((u32 *)(pewpew.addr + 0x000D8)))
+#define IMC_LSC                     2
+#define IMC_RXDMT                   4
+#define IMC_RXO                     6
+#define IMC_RXT                     7
 /* GCR */
 #define GCR         (*((u32 *)(pewpew.addr + 0x05B00)))
 #define GCR2        (*((u32 *)(pewpew.addr + 0x05B2C)))
@@ -56,7 +65,7 @@ const char pewpew_driver_name[] = MODULE_STR;
 #define TDBAH       (*((u32 *)(pewpew.addr + 0x03804)))
 #define TDLEN       (*((u32 *)(pewpew.addr + 0x03808)))
 #define TDH         (*((u32 *)(pewpew.addr + 0x03810)))
-#define TDT         (*((u32 *)(pewpew.addr + 0x03818))
+#define TDT         (*((u32 *)(pewpew.addr + 0x03818)))
 /* LEDCTL */
 #define LEDCTL      (*((u32 *)(pewpew.addr + 0x00E00)))
 #define LEDCTL_MODE_ACTIVE         0x0E
@@ -79,7 +88,6 @@ ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, l
 int pewpew_release(struct inode *inode, struct file *filp);
 int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
 void pewpew_remove(struct pci_dev *pdev);
-void pewpew_timer_callback(unsigned long unused);
 
 #define NUM_DESC                      16
 #define DESC_STATUS_DD                0
@@ -114,11 +122,12 @@ struct pewpew_dev {
   struct cdev cdev;
   struct pci_dev *pdev;
   void *addr;
-  struct timer_list timer;
+  struct work_struct work;
   struct d_wrap *rx_ring;
   struct d_wrap *tx_ring;
   dma_addr_t rx_dma_addr;
   dma_addr_t tx_dma_addr;
+  u32 ims;
 };
 struct pewpew_dev pewpew;
 
@@ -147,6 +156,10 @@ struct file_operations pewpew_fops = {
 static int blink_rate = DBL;
 module_param(blink_rate, int, S_IRUSR|S_IWUSR);
 MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
+
+static void pewpew_work_handler(struct work_struct *work) {
+  printk(INFO "worker: pewpew.ims is %08x\n", pewpew.ims);
+}
 
 int pewpew_init_ring(struct pci_dev *pdev, struct d_wrap **r,
     dma_addr_t *dma_addr) {
@@ -205,6 +218,12 @@ void pewpew_free_ring(struct pci_dev *pdev, struct d_wrap **r,
   *r = NULL;
 }
 
+static irqreturn_t pewpew_irq_handler(int irq, void *data) {
+  pewpew.ims = IMS;
+  schedule_work(&pewpew.work);
+  return IRQ_HANDLED;
+}
+
 int pewpew_init_device(struct pci_dev *pdev) {
   int err;
   /* Steps to initialize device (from data sheet 4.6)
@@ -237,14 +256,6 @@ int pewpew_init_device(struct pci_dev *pdev) {
    * on some systems, this comes from the system EEPROM not the NVM
    * on a Network Interface Card (NIC).
    */
-  err = pewpew_init_ring(pdev, &pewpew.rx_ring, &pewpew.rx_dma_addr);
-  if (err) {
-    return err;
-  }
-  err = pewpew_init_ring(pdev, &pewpew.tx_ring, &pewpew.tx_dma_addr);
-  if (err) {
-    return err;
-  }
   /* Program RCTL with appropriate values. If initializing it at this
    * stage, it is best to leave the receive logic disabled (EN = 0b)
    * until the receive descriptor ring has been initialized. If VLANs
@@ -267,23 +278,50 @@ int pewpew_init_device(struct pci_dev *pdev) {
    * pointers to these buffers should be stored in the descriptor
    * ring.
    */
+  err = pewpew_init_ring(pdev, &pewpew.rx_ring, &pewpew.rx_dma_addr);
+  if (err) {
+    return err;
+  }
+  err = pewpew_init_ring(pdev, &pewpew.tx_ring, &pewpew.tx_dma_addr);
+  if (err) {
+    return err;
+  }
   /* Program the descriptor base address with the address of the
    * region.
    */
+  RDBAL = (pewpew.rx_dma_addr) & 0xffffffff;
+  RDBAH = (pewpew.rx_dma_addr >> 32) & 0xffffffff;
   /* Set the length register to the size of the descriptor ring.
    */
+  RDLEN = NUM_DESC;
   /* If needed, program the head and tail registers. Note: the head
    * and tail pointers are initialized (by hardware) to zero after a
    * power-on or a software-initiated device reset.
    */
+  RDH = NUM_DESC - 1;
   /* The tail pointer should be set to point one descriptor beyond
    * the end.
    */
+  RDT = NUM_DESC;
+  printk(INFO "RCTL is: %08x\n", RCTL);
+  RCTL |= (1 << RCTL_EN);
+  printk(INFO "RCTL is: %08x\n", RCTL);
+  TDBAL = (pewpew.tx_dma_addr) & 0xffffffff;
+  TDBAH = (pewpew.tx_dma_addr >> 32) & 0xffffffff;
+  TDLEN = NUM_DESC;
+  TDH = NUM_DESC - 1;
+  TDT = NUM_DESC;
+  printk(INFO "TCTL is: %08x\n", TCTL);
+  TCTL |= (1 << TCTL_EN)|(16 << TCTL_CT);
+  printk(INFO "TCTL is: %08x\n", TCTL);
   /* Program the interrupt mask register to pass any interrupt that
    * the software device driver cares about. Suggested bits include
    * RXT, RXO, RXDMT and LSC. There is no reason to enable the
    * transmit interrupts.
    */
+  printk(INFO "IMC is: %08x\n", IMC);
+  IMC &= ~((1 << IMC_RXT)|(1 << IMC_RXO)|(1 << IMC_RXDMT)|(1 << IMC_LSC));
+  printk(INFO "IMC is: %08x\n", IMC);
   return err;
 }
 
@@ -341,9 +379,17 @@ int pewpew_probe(struct pci_dev *pdev, const struct pci_device_id *ent) {
   /* Save the PCI device for later use */
   pewpew.pdev = pdev;
 
+  /* Interrupt setup */
+  pci_enable_msi(pdev);
+  err = request_irq(pdev->irq, pewpew_irq_handler, 0, "pewpew_int", 0);
+  if (err) {
+    goto err_irq;
+  }
+
   /* Initialize device as called for by 82583V datasheet 4.6 */
   return pewpew_init_device(pdev);
 
+err_irq:
 err_ioremap:
   iounmap(pewpew.addr);
   pci_release_mem_regions(pdev);
@@ -359,6 +405,7 @@ void pewpew_remove(struct pci_dev *pdev) {
   pewpew_free_ring(pdev, &pewpew.rx_ring, &pewpew.rx_dma_addr);
   pewpew_free_ring(pdev, &pewpew.tx_ring, &pewpew.tx_dma_addr);
   iounmap(pewpew.addr);
+  pci_disable_msi(pdev);
   pci_release_mem_regions(pdev);
   pci_disable_device(pdev);
   pewpew.pdev = NULL;
@@ -366,23 +413,13 @@ void pewpew_remove(struct pci_dev *pdev) {
 }
 
 int pewpew_open(struct inode *inode, struct file *flip) {
-  int err;
   /* Make sure we are connected to the PCI device */
   if (pewpew.pdev == NULL || pewpew.addr == NULL) {
     return -ENODEV;
   }
   // TODO start blinking on open
-  /* Setup the timer, no need to pass argument to callback because we
-   * are shamlessly using globals all over. */
-  setup_timer(&pewpew.timer, pewpew_timer_callback, 0);
   /* Turn the LED on */
   LEDCTL |= LED0_ON;
-  /* Start the timer */
-  err = mod_timer(&pewpew.timer,
-      jiffies + msecs_to_jiffies(500 / blink_rate));
-  if (err) {
-    printk(ERR "mod_timer gave error %d\n", err);
-  }
 	return 0;
 }
 
@@ -467,37 +504,9 @@ int pewpew_release(struct inode *inode, struct file *filp) {
   if (pewpew.pdev == NULL || pewpew.addr == NULL) {
     return -ENODEV;
   }
-  /* Remove the timer */
-  del_timer_sync(&pewpew.timer);
   /* Turn off the LEDs */
   LEDCTL &= ~(LED0_ON);
   return 0;
-}
-
-void pewpew_timer_callback(unsigned long unused) {
-  int err;
-  /* Make sure blink_rate is valid */
-  if (blink_rate <= 0) {
-    printk(ERR "blink_rate has been set to %d which is invalid."
-       " It has been reset to the default of %d\n", blink_rate, DBL);
-    blink_rate = DBL;
-  }
-  /* Turn on or off the LED depending on where we are in the cycle */
-  if ((LEDCTL & LED0_ON) == LED0_ON) {
-    /* LED is on need to turn off */
-    printk(INFO "LED is on turning off\n");
-    LEDCTL &= ~(LED0_ON);
-  } else {
-    /* LED is off need to turn on */
-    printk(INFO "LED is off turning on\n");
-    LEDCTL |= LED0_ON;
-  }
-  /* Turn the timer on */
-  err = mod_timer(&pewpew.timer,
-      jiffies + msecs_to_jiffies(500 / blink_rate));
-  if (err) {
-    printk(ERR "mod_timer gave error %d\n", err);
-  }
 }
 
 static int __init pewpew_init(void) {
@@ -524,6 +533,8 @@ static int __init pewpew_init(void) {
     printk(ERR "failed to cdev_add\n");
     return 0;
   }
+  /* workqueue */
+  INIT_WORK(&pewpew.work, pewpew_work_handler);
   printk(INFO "Initialized\n");
   printk(INFO "Registering pci driver\n");
   return pci_register_driver(&pewpew_driver);
@@ -531,8 +542,8 @@ static int __init pewpew_init(void) {
 
 static void __exit pewpew_exit(void) {
   printk(INFO "Exiting...\n");
-  /* Remove the timer */
-  del_timer_sync(&pewpew.timer);
+  /* Remove the workqueue */
+  cancel_work_sync(&pewpew.work);
   /* Remove our character device */
   cdev_del(&pewpew.cdev);
   /* Unregister our device number */
