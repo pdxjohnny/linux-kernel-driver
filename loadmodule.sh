@@ -1,6 +1,8 @@
 #!/bin/bash
 MODULE=pewpew
 
+echo 0000:03:00.0 | tee /sys/module/e1000e/drivers/pci\:e1000e/unbind
+
 rmmod ${MODULE}
 rm -f /dev/${MODULE}0
 

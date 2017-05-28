@@ -33,6 +33,8 @@ const char pewpew_driver_name[] = MODULE_STR;
 #define CTRL_PHY_RST                31
 /* STATUS 9.2.2.2 */
 #define STATUS      (*((u32 *)(pewpew.addr + 0x00008)))
+/* ICR */
+#define ICR         (*((u32 *)(pewpew.addr + 0x000C0)))
 /* IMS */
 #define IMS         (*((u32 *)(pewpew.addr + 0x000D0)))
 #define IMS_LSC                     2
@@ -47,7 +49,7 @@ const char pewpew_driver_name[] = MODULE_STR;
 #define IMC_RXT                     7
 /* GCR */
 #define GCR         (*((u32 *)(pewpew.addr + 0x05B00)))
-#define GCR2        (*((u32 *)(pewpew.addr + 0x05B2C)))
+#define GCR2        (*((u32 *)(pewpew.addr + 0x05B64)))
 /* MDIC */
 #define MDIC        (*((u32 *)(pewpew.addr + 0x00020)))
 /* Send and receive */
@@ -127,7 +129,7 @@ struct pewpew_dev {
   struct d_wrap *tx_ring;
   dma_addr_t rx_dma_addr;
   dma_addr_t tx_dma_addr;
-  u32 ims;
+  u32 icr;
 };
 struct pewpew_dev pewpew;
 
@@ -158,7 +160,7 @@ module_param(blink_rate, int, S_IRUSR|S_IWUSR);
 MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
 
 static void pewpew_work_handler(struct work_struct *work) {
-  printk(INFO "worker: pewpew.ims is %08x\n", pewpew.ims);
+  printk(INFO "worker: pewpew.icr is %08x\n", pewpew.icr);
 }
 
 int pewpew_init_ring(struct pci_dev *pdev, struct d_wrap **r,
@@ -208,7 +210,7 @@ void pewpew_free_ring(struct pci_dev *pdev, struct d_wrap **r,
     dma_addr_t *dma_addr) {
   int i;
   struct d_wrap *ring = *r;
-  for (i = NUM_DESC; i >= 0; --i) {
+  for (i = NUM_DESC - 1; i >= 0; --i) {
     dma_free_coherent(&pdev->dev, 2048,
         ring[i].buf, ring[i].d->dma_buf);
   }
@@ -219,7 +221,7 @@ void pewpew_free_ring(struct pci_dev *pdev, struct d_wrap **r,
 }
 
 static irqreturn_t pewpew_irq_handler(int irq, void *data) {
-  pewpew.ims = IMS;
+  pewpew.icr = ICR;
   schedule_work(&pewpew.work);
   return IRQ_HANDLED;
 }
@@ -319,9 +321,9 @@ int pewpew_init_device(struct pci_dev *pdev) {
    * RXT, RXO, RXDMT and LSC. There is no reason to enable the
    * transmit interrupts.
    */
-  printk(INFO "IMC is: %08x\n", IMC);
-  IMC &= ~((1 << IMC_RXT)|(1 << IMC_RXO)|(1 << IMC_RXDMT)|(1 << IMC_LSC));
-  printk(INFO "IMC is: %08x\n", IMC);
+  printk(INFO "IMS is: %08x\n", IMS);
+  IMS = 0xffffffff ^ ~((1 << IMS_RXT)|(1 << IMS_RXO)|(1 << IMS_RXDMT)|(1 << IMS_LSC));
+  printk(INFO "IMS is: %08x\n", IMS);
   return err;
 }
 
@@ -405,6 +407,7 @@ void pewpew_remove(struct pci_dev *pdev) {
   pewpew_free_ring(pdev, &pewpew.rx_ring, &pewpew.rx_dma_addr);
   pewpew_free_ring(pdev, &pewpew.tx_ring, &pewpew.tx_dma_addr);
   iounmap(pewpew.addr);
+  free_irq(pdev->irq, 0);
   pci_disable_msi(pdev);
   pci_release_mem_regions(pdev);
   pci_disable_device(pdev);
