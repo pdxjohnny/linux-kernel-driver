@@ -79,7 +79,10 @@ const char pewpew_driver_name[] = MODULE_STR;
 #define LEDCTL_BLINK               (1 << 7)
 #define LEDCTL_LED0(X)             ((X) << 0)
 #define LEDCTL_LED1(X)             ((X) << 8)
-#define LED0_ON     (u32)(LEDCTL_LED0(LEDCTL_MODE_ACTIVE|LEDCTL_IVRT))
+#define LEDCTL_LED2(X)             ((X) << 16)
+#define LED0_ON     (u32)(LEDCTL_LED0(LEDCTL_MODE_ACTIVE))
+#define LED1_ON     (u32)(LEDCTL_LED1(LEDCTL_MODE_ACTIVE))
+#define LED2_ON     (u32)(LEDCTL_LED2(LEDCTL_MODE_ACTIVE))
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,8,0)
 static inline void pci_release_mem_regions(struct pci_dev *pdev) {
@@ -155,10 +158,7 @@ static struct pci_driver pewpew_driver = {
 };
 
 struct file_operations pewpew_fops = {
-  .open = pewpew_open,
   .read = pewpew_read,
-  .write = pewpew_write,
-  .release = pewpew_release,
 };
 
 /* Default Blink Rate */
@@ -181,6 +181,11 @@ static void pewpew_work_handler(struct work_struct *work) {
   printk(INFO "worker: RDT is %d\n", RDT);
   pewpew.rdh = RDH;
   pewpew.rdt = RDT;
+
+  printk(INFO "worker: LEDCTL is %08x\n", LEDCTL);
+  msleep(500);
+  LEDCTL = 0;
+  printk(INFO "worker: LEDCTL is %08x\n", LEDCTL);
   if (pewpew.icr & (1 << IMS_RXT)) {
     printk(INFO "worker: RXT: Receiver Timer Interrupt\n");
     if (pewpew.just_reset) {
@@ -283,6 +288,7 @@ void pewpew_free_ring(struct pci_dev *pdev, struct d_wrap **r,
 
 static irqreturn_t pewpew_irq_handler(int irq, void *data) {
   pewpew.icr = ICR;
+  LEDCTL = LED1_ON|LED2_ON;
   schedule_work(&pewpew.work);
   return IRQ_HANDLED;
 }
@@ -466,8 +472,7 @@ err_dma:
 }
 
 void pewpew_remove(struct pci_dev *pdev) {
-  /* Clear it all (probably bad) */
-  LEDCTL &= ~(LED0_ON);
+  LEDCTL = 0;
   pewpew_free_ring(pdev, &pewpew.rx_ring, &pewpew.rx_dma_addr);
   pewpew_free_ring(pdev, &pewpew.tx_ring, &pewpew.tx_dma_addr);
   iounmap(pewpew.addr);
@@ -479,101 +484,23 @@ void pewpew_remove(struct pci_dev *pdev) {
   pewpew.addr = NULL;
 }
 
-int pewpew_open(struct inode *inode, struct file *flip) {
-  /* Make sure we are connected to the PCI device */
-  if (pewpew.pdev == NULL || pewpew.addr == NULL) {
-    return -ENODEV;
-  }
-  // TODO start blinking on open
-  /* Turn the LED on */
-  LEDCTL |= LED0_ON;
-	return 0;
-}
-
 ssize_t pewpew_read(struct file *flip, char __user *buff, size_t count, loff_t *offp) {
-  int err;
-  char *kbuff;
-  const unsigned int kbuff_size = 255;
-  /* Make sure we got a buffer from userspace */
-  if (buff == NULL) {
-    printk(ERR "NULL buffer from userspace\n");
+  u16 pack = 0;
+  /* Make sure we got a 2 byte buffer from userspace */
+  if (buff == NULL || count != 2) {
+    printk(ERR "NULL buffer or not 2 wide from userspace\n");
     return -EINVAL;
   }
-  /* Allocate a kernel buffer big enough to hold any int as a string */
-  kbuff = kmalloc(kbuff_size, GFP_KERNEL);
-  /* Check if allocation was successful */
-  if (kbuff == NULL) {
-    printk(ERR "failed to allocate kernel buffer\n");
-    return -ENOMEM;
-  }
-  /* Format blink_rate into the kernel buffer */
-  err = sprintf(kbuff, "%d", blink_rate);
-  /* Make sure we don't write back a string larger than the receiving
-   * buffer can hold */
-  if (count < strnlen(kbuff, kbuff_size)) {
-    return -ENOMEM;
-  }
-  /* Find the length of the string we are writing back */
-  count = strnlen(kbuff, kbuff_size);
-  /* Copy the contents of the user buffer to the kernel buffer */
-  copy_to_user(buff, kbuff, count);
-  /* Free the kernel buffer */
-  kfree(kbuff);
-  printk(INFO "Read complete, blink_rate is %d\n", blink_rate);
   /* Make sure we are connected to the PCI device */
   if (pewpew.pdev == NULL || pewpew.addr == NULL) {
     return -ENODEV;
   }
+  pack = ((RDH & 0xff) << 8)|(RDT & 0xff);
+  /* Copy the contents of pack to the user buffer */
+  copy_to_user(buff, &pack, 2);
+  printk(INFO "Read complete, pack is %04x\n", pack);
   /* Return length of the string written back */
   return count;
-}
-
-ssize_t pewpew_write(struct file *flip, const char __user *buff, size_t count, loff_t *offp) {
-  int err;
-  int tmp;
-  char *kbuff;
-  /* Make sure we are connected to the PCI device */
-  if (pewpew.pdev == NULL || pewpew.addr == NULL) {
-    return -ENODEV;
-  }
-  /* Make sure we got a buffer from userspace */
-  if (buff == NULL) {
-    printk(ERR "NULL buffer from userspace\n");
-    return -EINVAL;
-  }
-  /* Allocate a kernel buffer of the same size as the user one */
-  kbuff = kmalloc(sizeof(*buff) * count, GFP_KERNEL);
-  /* Check if allocation was successful */
-  if (kbuff == NULL) {
-    printk(ERR "failed to allocate kernel buffer\n");
-    return -ENOMEM;
-  }
-  /* Copy the contents of the user buffer to the kernel buffer */
-  copy_from_user(kbuff, buff, (sizeof(*buff) * count) + 1);
-  kbuff[sizeof(*buff) * count] = '\0';
-  /* Parse the kernel buffer into tmp */
-  err = kstrtoint(kbuff, 10, &tmp);
-  /* Free the kernel buffer */
-  kfree(kbuff);
-  /* Check if parse was successful and tmp is postive */
-  if (err < 0 || tmp <= 0) {
-    printk(ERR "failed to parse integer or negative\n");
-    return -EINVAL;
-  }
-  blink_rate = tmp;
-  printk(INFO "Write complete, blink_rate is %d\n", blink_rate);
-  /* Return length that was given on success */
-  return count;
-}
-
-int pewpew_release(struct inode *inode, struct file *filp) {
-  /* Make sure we are connected to the PCI device */
-  if (pewpew.pdev == NULL || pewpew.addr == NULL) {
-    return -ENODEV;
-  }
-  /* Turn off the LEDs */
-  LEDCTL &= ~(LED0_ON);
-  return 0;
 }
 
 static int __init pewpew_init(void) {

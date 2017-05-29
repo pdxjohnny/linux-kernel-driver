@@ -10,9 +10,9 @@
 #define DEV_NAME "/dev/pewpew0"
 
 int main(int argc, char **argv) {
-  int fd, i, n, blink_rate;
-  const unsigned int buff_size = 255;
-  char buff[buff_size];
+  int fd;
+  uint16_t pack = 0;
+  uint8_t head = 0, tail = 0;
 
   fd = open(DEV_NAME, O_RDWR);
   if (fd < 0) {
@@ -20,33 +20,17 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  for (i = 1; i < argc; i++) {
-    memset(buff, 0, buff_size);
-    if (read(fd, buff, buff_size) < 1) {
-      perror("Error reading from " DEV_NAME);
-      return EXIT_FAILURE;
-    }
-
-    printf("Blink Rate: %s\n", buff);
-
-    sleep(2);
-
-    // /* Set Blink Rate */
-    // blink_rate = atoi(argv[i]);
-    // printf("Setting Blink Rate to: %d\n", blink_rate);
-
-    // memset(buff, 0, buff_size);
-    // sprintf(buff, "%d", blink_rate);
-
-    // if (write(fd, buff, strlen(buff)) != strlen(buff)) {
-    //   perror("Error writing to " DEV_NAME);
-    //   return EXIT_FAILURE;
-    // }
-
-    // sleep(2);
+  if (read(fd, &pack, sizeof(pack)) != sizeof(pack)) {
+    perror("Error reading from " DEV_NAME);
+    return EXIT_FAILURE;
   }
 
-  close(fd);
+  head = ((pack >> 8) & 0xff);
+  tail = ((pack >> 0) & 0xff);
 
+  printf("HEAD: %d\n", head);
+  printf("TAIL: %d\n", tail);
+
+  close(fd);
   return EXIT_SUCCESS;
 }
