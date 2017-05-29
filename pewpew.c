@@ -161,7 +161,8 @@ MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
 
 static void pewpew_work_handler(struct work_struct *work) {
   printk(INFO "worker: pewpew.icr is %08x\n", pewpew.icr);
-  printk(INFO "worker: ICR is %08x\n", ICR);
+  printk(INFO "worker: RDH is %d\n", RDH);
+  printk(INFO "worker: RDT is %d\n", RDT);
   if (pewpew.icr & (1 << IMS_RXT)) {
     printk(INFO "worker: RXT: Receiver Timer Interrupt\n");
   }
@@ -173,6 +174,11 @@ static void pewpew_work_handler(struct work_struct *work) {
   }
   if (pewpew.icr & (1 << IMS_LSC)) {
     printk(INFO "worker: LSC: Link Status Change\n");
+    if (STATUS & (1 << 1)) {
+      printk(INFO "worker: STATUS: Link established\n");
+    } else {
+      printk(INFO "worker: STATUS: No link established\n");
+    }
   }
 }
 
@@ -317,7 +323,7 @@ int pewpew_init_device(struct pci_dev *pdev) {
   /* The tail pointer should be set to point one descriptor beyond
    * the end.
    */
-  RDT = NUM_DESC;
+  RDT = 0;
   printk(INFO "RCTL is: %08x\n", RCTL);
   RCTL |= (1 << RCTL_EN);
   printk(INFO "RCTL is: %08x\n", RCTL);
@@ -325,7 +331,7 @@ int pewpew_init_device(struct pci_dev *pdev) {
   TDBAH = (pewpew.tx_dma_addr >> 32) & 0xffffffff;
   TDLEN = NUM_DESC;
   TDH = NUM_DESC - 1;
-  TDT = NUM_DESC;
+  TDT = 0;
   printk(INFO "TCTL is: %08x\n", TCTL);
   TCTL |= (1 << TCTL_EN)|(16 << TCTL_CT);
   printk(INFO "TCTL is: %08x\n", TCTL);
