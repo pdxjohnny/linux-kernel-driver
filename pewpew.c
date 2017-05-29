@@ -314,35 +314,37 @@ int pewpew_init_device(struct pci_dev *pdev) {
   RDBAH = (pewpew.rx_dma_addr >> 32) & 0xffffffff;
   /* Set the length register to the size of the descriptor ring.
    */
-  RDLEN = NUM_DESC;
+  RDLEN = NUM_DESC * sizeof(struct desc);
   /* If needed, program the head and tail registers. Note: the head
    * and tail pointers are initialized (by hardware) to zero after a
    * power-on or a software-initiated device reset.
    */
-  RDH = NUM_DESC - 1;
+  RDH = (NUM_DESC - 1) * sizeof(struct desc);
   /* The tail pointer should be set to point one descriptor beyond
    * the end.
    */
-  RDT = 0;
-  printk(INFO "RCTL is: %08x\n", RCTL);
+  RDT = NUM_DESC * sizeof(struct desc);
+  printk(INFO "setup: RDH is %d\n", RDH);
+  printk(INFO "setup: RDT is %d\n", RDT);
+  printk(INFO "setup: RCTL is: %08x\n", RCTL);
   RCTL |= (1 << RCTL_EN);
-  printk(INFO "RCTL is: %08x\n", RCTL);
+  printk(INFO "setup: RCTL is: %08x\n", RCTL);
   TDBAL = (pewpew.tx_dma_addr) & 0xffffffff;
   TDBAH = (pewpew.tx_dma_addr >> 32) & 0xffffffff;
   TDLEN = NUM_DESC;
   TDH = NUM_DESC - 1;
   TDT = 0;
-  printk(INFO "TCTL is: %08x\n", TCTL);
+  printk(INFO "setup: TCTL is: %08x\n", TCTL);
   TCTL |= (1 << TCTL_EN)|(16 << TCTL_CT);
-  printk(INFO "TCTL is: %08x\n", TCTL);
+  printk(INFO "setup: TCTL is: %08x\n", TCTL);
   /* Program the interrupt mask register to pass any interrupt that
    * the software device driver cares about. Suggested bits include
    * RXT, RXO, RXDMT and LSC. There is no reason to enable the
    * transmit interrupts.
    */
-  printk(INFO "IMS is: %08x\n", IMS);
+  printk(INFO "setup: IMS is: %08x\n", IMS);
   IMS = ((1 << IMS_RXT)|(1 << IMS_RXO)|(1 << IMS_RXDMT)|(1 << IMS_LSC));
-  printk(INFO "IMS is: %08x\n", IMS);
+  printk(INFO "setup: IMS is: %08x\n", IMS);
   return err;
 }
 
