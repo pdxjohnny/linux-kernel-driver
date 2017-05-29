@@ -55,6 +55,9 @@ const char pewpew_driver_name[] = MODULE_STR;
 /* Send and receive */
 #define RCTL        (*((u32 *)(pewpew.addr + 0x00100)))
 #define RCTL_EN                    1
+#define RCTL_UPE                   3
+#define RCTL_MPE                   4
+#define RCTL_BAM                   15
 #define RDBAL       (*((u32 *)(pewpew.addr + 0x02800)))
 #define RDBAH       (*((u32 *)(pewpew.addr + 0x02804)))
 #define RDLEN       (*((u32 *)(pewpew.addr + 0x02808)))
@@ -115,6 +118,7 @@ struct desc {
 struct d_wrap {
   struct desc *d;
   void *buf;
+  dma_addr_t dma_buf;
 };
 
 struct pewpew_dev {
@@ -130,6 +134,10 @@ struct pewpew_dev {
   dma_addr_t rx_dma_addr;
   dma_addr_t tx_dma_addr;
   u32 icr;
+  u32 rdh;
+  u32 rdt;
+  int i;
+  int just_reset;
 };
 struct pewpew_dev pewpew;
 
@@ -159,12 +167,46 @@ static int blink_rate = DBL;
 module_param(blink_rate, int, S_IRUSR|S_IWUSR);
 MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
 
+void desc_clean(int i) {
+printk(INFO "worker: pewpew.rx_ring[%d] DESCRIPTOR DONE\n", i);
+printk(INFO "worker: pewpew.rx_ring[%d] Cleaning...\n", i);
+memset(pewpew.rx_ring[i].d, 0, sizeof(struct desc));
+pewpew.rx_ring[i].d->dma_buf = cpu_to_le64(pewpew.rx_ring[i].dma_buf);
+printk(INFO "worker: pewpew.rx_ring[%d] Cleaned\n", i);
+}
+
 static void pewpew_work_handler(struct work_struct *work) {
   printk(INFO "worker: pewpew.icr is %08x\n", pewpew.icr);
   printk(INFO "worker: RDH is %d\n", RDH);
   printk(INFO "worker: RDT is %d\n", RDT);
+  pewpew.rdh = RDH;
+  pewpew.rdt = RDT;
   if (pewpew.icr & (1 << IMS_RXT)) {
     printk(INFO "worker: RXT: Receiver Timer Interrupt\n");
+    if (pewpew.just_reset) {
+      pewpew.just_reset = 0;
+      desc_clean(NUM_DESC - 1);
+      RDT = NUM_DESC;
+      printk(INFO "worker: RESET part 2 RDT\n");
+      printk(INFO "worker: pewpew.i is %d\n", pewpew.i);
+      printk(INFO "worker: RDH is %d\n", RDH);
+      printk(INFO "worker: RDT is %d\n", RDT);
+    }
+    for (; pewpew.i < pewpew.rdh; ++pewpew.i) {
+      printk(INFO "worker: pewpew.i is %d\n", pewpew.i);
+      if (pewpew.rx_ring[pewpew.i].d->status & (1 << DESC_STATUS_DD)) {
+        desc_clean(pewpew.i);
+      }
+    }
+    if (pewpew.i >= (NUM_DESC - 1)) {
+      pewpew.i = 0;
+      RDT = 0;
+      printk(INFO "worker: RESET pewpew.i and RDT\n");
+      printk(INFO "worker: pewpew.i is %d\n", pewpew.i);
+      printk(INFO "worker: RDH is %d\n", RDH);
+      printk(INFO "worker: RDT is %d\n", RDT);
+      pewpew.just_reset = 1;
+    }
   }
   if (pewpew.icr & (1 << IMS_RXO)) {
     printk(INFO "worker: RXO: Receiver Overrun\n");
@@ -203,8 +245,8 @@ int pewpew_init_ring(struct pci_dev *pdev, struct d_wrap **r,
   for (i = 0; i < NUM_DESC; ++i) {
     ring[i].d = &(dma_ring[i]);
     ring[i].buf = dma_alloc_coherent(&pdev->dev,
-        2048, &ring[i].d->dma_buf, GFP_KERNEL);
-    ring[i].d->dma_buf = cpu_to_le64(ring[i].d->dma_buf);
+        2048, &ring[i].dma_buf, GFP_KERNEL);
+    ring[i].d->dma_buf = cpu_to_le64(ring[i].dma_buf);
     if (!ring[i].buf) {
       goto desc_fail;
     }
@@ -319,15 +361,16 @@ int pewpew_init_device(struct pci_dev *pdev) {
    * and tail pointers are initialized (by hardware) to zero after a
    * power-on or a software-initiated device reset.
    */
-  RDH = (NUM_DESC - 1) * sizeof(struct desc);
+  RDH = 0;
   /* The tail pointer should be set to point one descriptor beyond
    * the end.
    */
-  RDT = NUM_DESC * sizeof(struct desc);
+  RDT = NUM_DESC;
   printk(INFO "setup: RDH is %d\n", RDH);
   printk(INFO "setup: RDT is %d\n", RDT);
+  printk(INFO "setup: RDLEN is %d\n", RDLEN);
   printk(INFO "setup: RCTL is: %08x\n", RCTL);
-  RCTL |= (1 << RCTL_EN);
+  RCTL |= ((1 << RCTL_EN)|(1 << RCTL_UPE)|(1 << RCTL_MPE)|(1 << RCTL_BAM));
   printk(INFO "setup: RCTL is: %08x\n", RCTL);
   TDBAL = (pewpew.tx_dma_addr) & 0xffffffff;
   TDBAH = (pewpew.tx_dma_addr >> 32) & 0xffffffff;
