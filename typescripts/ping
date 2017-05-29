@@ -1,0 +1,144 @@
+Script started on Mon 29 May 2017 03:35:41 PM PDT
+pdxjohnny@ece373:~/ECE373$ make clean all load
+make -C /lib/modules/3.13.0-48-generic/build SUBDIRS=/home/pdxjohnny/ECE373 clean
+make[1]: Entering directory `/usr/src/linux-headers-3.13.0-48-generic'
+  CLEAN   /home/pdxjohnny/ECE373/.tmp_versions
+  CLEAN   /home/pdxjohnny/ECE373/Module.symvers
+make[1]: Leaving directory `/usr/src/linux-headers-3.13.0-48-generic'
+rm -f user mmap
+make -C /lib/modules/3.13.0-48-generic/build SUBDIRS=/home/pdxjohnny/ECE373 modules
+make[1]: Entering directory `/usr/src/linux-headers-3.13.0-48-generic'
+  CC [M]  /home/pdxjohnny/ECE373/pewpew.o
+  Building modules, stage 2.
+  MODPOST 1 modules
+  CC      /home/pdxjohnny/ECE373/pewpew.mod.o
+  LD [M]  /home/pdxjohnny/ECE373/pewpew.ko
+make[1]: Leaving directory `/usr/src/linux-headers-3.13.0-48-generic'
+gcc -o user user.c
+gcc -o mmap mmap.c -lpci
+sudo ./loadmodule.sh
+0000:03:00.0
+tee: /sys/module/e1000e/drivers/pci:e1000e/unbind: No such device
+pdxjohnny@ece373:~/ECE373$ dmesg | tail -n 22
+[ 5801.716181] pewpew: setup: TCTL is: 30000008
+[ 5801.716188] pewpew: setup: TCTL is: 3000010a
+[ 5801.716194] pewpew: setup: IMS is: 00000000
+[ 5801.716201] pewpew: setup: IMS is: 000000d4
+[ 5801.716250] pewpew: worker: pewpew.icr is 81000006
+[ 5801.716262] pewpew: worker: RDH is 0
+[ 5801.716269] pewpew: worker: RDT is 16
+[ 5801.716280] pewpew: worker: LEDCTL is 000e0e00
+[ 5802.220097] pewpew: worker: LEDCTL is 00000000
+[ 5802.220104] pewpew: worker: LSC: Link Status Change
+[ 5802.220110] pewpew: worker: STATUS: No link established
+[ 5802.800152] e1000e: eth0 NIC Link is Down
+[ 5822.652176] pewpew: worker: pewpew.icr is 81000004
+[ 5822.652187] pewpew: worker: RDH is 0
+[ 5822.652193] pewpew: worker: RDT is 16
+[ 5822.652203] pewpew: worker: LEDCTL is 000e0e00
+[ 5822.657178] e1000e: eth0 NIC Link is Up 100 Mbps Full Duplex, Flow Control: Rx/Tx
+[ 5822.657294] e1000e 0000:00:19.0 eth0: Link Speed was downgraded by SmartSpeed
+[ 5822.657300] e1000e 0000:00:19.0 eth0: 10/100 speed: disabling TSO
+[ 5823.156056] pewpew: worker: LEDCTL is 00000000
+[ 5823.156063] pewpew: worker: LSC: Link Status Change
+[ 5823.156069] pewpew: worker: STATUS: Link established
+pdxjohnny@ece373:~/ECE373$ !ping
+ping -I eth0 -c 1 -r 11.22.33.44
+PING 11.22.33.44 (11.22.33.44) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 11.22.33.44 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+pdxjohnny@ece373:~/ECE373$ dmesg | grep -[K[K[K[K[K[Ktail -n 22
+[ 5851.292076] pewpew: worker: pewpew.rx_ring[0] Cleaning...
+[ 5851.292079] pewpew: worker: pewpew.rx_ring[0] Cleaned
+[ 5851.788153] pewpew: worker: pewpew.icr is 80100080
+[ 5851.788163] pewpew: worker: RDH is 2
+[ 5851.788169] pewpew: worker: RDT is 16
+[ 5851.788179] pewpew: worker: LEDCTL is 000e0e00
+[ 5852.292052] pewpew: worker: LEDCTL is 00000000
+[ 5852.292060] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 5852.292064] pewpew: worker: pewpew.i is 1
+[ 5852.292068] pewpew: worker: pewpew.rx_ring[1] DESCRIPTOR DONE
+[ 5852.292071] pewpew: worker: pewpew.rx_ring[1] Cleaning...
+[ 5852.292075] pewpew: worker: pewpew.rx_ring[1] Cleaned
+[ 5852.788088] pewpew: worker: pewpew.icr is 80100080
+[ 5852.788098] pewpew: worker: RDH is 3
+[ 5852.788104] pewpew: worker: RDT is 16
+[ 5852.788114] pewpew: worker: LEDCTL is 000e0e00
+[ 5853.292056] pewpew: worker: LEDCTL is 00000000
+[ 5853.292064] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 5853.292069] pewpew: worker: pewpew.i is 2
+[ 5853.292072] pewpew: worker: pewpew.rx_ring[2] DESCRIPTOR DONE
+[ 5853.292076] pewpew: worker: pewpew.rx_ring[2] Cleaning...
+[ 5853.292079] pewpew: worker: pewpew.rx_ring[2] Cleaned
+pdxjohnny@ece373:~/ECE373$ ./user
+HEAD: 3
+TAIL: 16
+pdxjohnny@ece373:~/ECE373$ !ping
+ping -I eth0 -c 1 -r 11.22.33.44
+PING 11.22.33.44 (11.22.33.44) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 11.22.33.44 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+pdxjohnny@ece373:~/ECE373$ ./user
+HEAD: 6
+TAIL: 16
+pdxjohnny@ece373:~/ECE373$ !ping
+ping -I eth0 -c 1 -r 11.22.33.44
+PING 11.22.33.44 (11.22.33.44) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 11.22.33.44 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+pdxjohnny@ece373:~/ECE373$ ./user
+HEAD: 9
+TAIL: 16
+pdxjohnny@ece373:~/ECE373$ !ping
+ping -I eth0 -c 1 -r 11.22.33.44
+PING 11.22.33.44 (11.22.33.44) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 11.22.33.44 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+pdxjohnny@ece373:~/ECE373$ !ping
+ping -I eth0 -c 1 -r 11.22.33.44
+PING 11.22.33.44 (11.22.33.44) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 11.22.33.44 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+pdxjohnny@ece373:~/ECE373$ ./s[Kuser
+HEAD: 15
+TAIL: 0
+pdxjohnny@ece373:~/ECE373$ !ping
+ping -I eth0 -c 1 -r 11.22.33.44
+PING 11.22.33.44 (11.22.33.44) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 11.22.33.44 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+pdxjohnny@ece373:~/ECE373$ ./se[K[Kuser
+HEAD: 2
+TAIL: 16
+pdxjohnny@ece373:~/ECE373$ !ping
+ping -I eth0 -c 1 -r 11.22.33.44
+PING 11.22.33.44 (11.22.33.44) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 11.22.33.44 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+pdxjohnny@ece373:~/ECE373$ ./user
+HEAD: 5
+TAIL: 16
+pdxjohnny@ece373:~/ECE373$ exit
+
+Script done on Mon 29 May 2017 03:37:47 PM PDT
