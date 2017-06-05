@@ -11,3 +11,4 @@ pewpew.ko
 pewpew.mod.c
 tags
 user
+.built-in.o.cmd

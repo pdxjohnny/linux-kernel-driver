@@ -10,7 +10,7 @@
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
 #include <linux/interrupt.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 MODULE_LICENSE("GPL");
 
 #define MODULE_STR "pewpew"

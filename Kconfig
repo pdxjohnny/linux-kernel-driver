@@ -1,0 +1,14 @@
+comment "ECE 373 Ethernet Driver"
+
+config ECE_373_ETH
+	tristate "ECE 373 Ethernet Driver"
+	depends on PCI
+	help
+	  This is a driver for the Intel 82583V NIC. It blinks the green
+	  LEDs for half a second when it receives a packet. It creates a
+	  chardev, /dev/pewpew, which gives statistics from the NIC.
+
+	  If you are building a host/card kernel with an Intel 82583V NIC
+	  then say M (recommended) or Y, else say N. If unsure say N.
+
+	  More information can be found by emailing PJ endlessly.
