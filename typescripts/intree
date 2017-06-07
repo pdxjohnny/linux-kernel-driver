@@ -1,0 +1,57 @@
+Script started on Tue 06 Jun 2017 10:22:07 PM PDT
+linux@linux-desktop:~$ uname -r
+4.12.0-rc2jsa3+
+linux@linux-desktop:~$ ls /lib/modules/4.[K[K`uname -r`/modules[K[K[K[K[K[K[Kkernel/drivers/misc/eve[K[Kce
+pewpew.ko
+linux@linux-desktop:~$ lsmod | grep pewpew
+[01;31m[Kpewpew[m[K                 16384  0
+linux@linux-desktop:~$ lsmod
+Module                  Size  Used by
+usb_storage            61440  1
+gpio_ich               16384  0
+snd_hda_codec_realtek    90112  1
+snd_hda_codec_generic    69632  1 snd_hda_codec_realtek
+snd_hda_intel          40960  3
+snd_hda_codec         126976  3 snd_hda_intel,snd_hda_codec_generic,snd_hda_codec_realtek
+snd_hda_core           77824  4 snd_hda_intel,snd_hda_codec,snd_hda_codec_generic,snd_hda_codec_realtek
+snd_hwdep              16384  1 snd_hda_codec
+snd_pcm               118784  3 snd_hda_intel,snd_hda_codec,snd_hda_core
+snd_seq_midi           16384  0
+snd_seq_midi_event     16384  1 snd_seq_midi
+snd_rawmidi            32768  1 snd_seq_midi
+snd_seq                65536  2 snd_seq_midi_event,snd_seq_midi
+snd_seq_device         16384  3 snd_seq,snd_rawmidi,snd_seq_midi
+pewpew                 16384  0
+snd_timer              32768  2 snd_seq,snd_pcm
+snd                    77824  16 snd_hda_intel,snd_hwdep,snd_seq,snd_hda_codec,snd_timer,snd_rawmidi,snd_hda_codec_generic,snd_seq_device,snd_hda_codec_realtek,snd_pcm
+soundcore              16384  1 snd
+shpchp                 36864  0
+serio_raw              16384  0
+coretemp               16384  0
+lpc_ich                24576  0
+mac_hid                16384  0
+parport_pc             32768  0
+ppdev                  20480  0
+lp                     20480  0
+parport                49152  3 lp,parport_pc,ppdev
+autofs4                40960  2
+hid_generic            16384  0
+i915                 1269760  3
+usbhid                 49152  0
+psmouse               139264  0
+hid                   118784  2 hid_generic,usbhid
+video                  40960  1 i915
+i2c_algo_bit           16384  1 i915
+drm_kms_helper        147456  1 i915
+syscopyarea            16384  1 drm_kms_helper
+sysfillrect            16384  1 drm_kms_helper
+sysimgblt              16384  1 drm_kms_helper
+pata_acpi              16384  0
+e1000e                241664  0
+fb_sys_fops            16384  1 drm_kms_helper
+drm                   344064  5 i915,drm_kms_helper
+ptp                    20480  1 e1000e
+pps_core               20480  1 ptp
+linux@linux-desktop:~$ exit
+
+Script done on Tue 06 Jun 2017 10:23:22 PM PDT
