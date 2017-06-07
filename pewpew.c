@@ -170,6 +170,8 @@ MODULE_PARM_DESC(blink_rate, "blinks-per-second rate");
 void desc_clean(int i) {
 printk(INFO "worker: pewpew.rx_ring[%d] DESCRIPTOR DONE\n", i);
 printk(INFO "worker: pewpew.rx_ring[%d] Cleaning...\n", i);
+printk(INFO "worker: pewpew.rx_ring[%d] status: %02x\n", i, pewpew.rx_ring[i].d->status);
+printk(INFO "worker: pewpew.rx_ring[%d] length: %04x\n", i, (u16)pewpew.rx_ring[i].d->length);
 memset(pewpew.rx_ring[i].d, 0, sizeof(struct desc));
 pewpew.rx_ring[i].d->dma_buf = cpu_to_le64(pewpew.rx_ring[i].dma_buf);
 printk(INFO "worker: pewpew.rx_ring[%d] Cleaned\n", i);
