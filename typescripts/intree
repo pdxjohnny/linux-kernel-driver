@@ -1,7 +1,7 @@
 Script started on Tue 06 Jun 2017 10:22:07 PM PDT
 linux@linux-desktop:~$ uname -r
 4.12.0-rc2jsa3+
-linux@linux-desktop:~$ ls /lib/modules/4.[K[K`uname -r`/modules[K[K[K[K[K[K[Kkernel/drivers/misc/eve[K[Kce
+linux@linux-desktop:~$ ls /lib/modules/`uname -r`/kernel/drivers/misc/ece
 pewpew.ko
 linux@linux-desktop:~$ lsmod | grep pewpew
 [01;31m[Kpewpew[m[K                 16384  0
