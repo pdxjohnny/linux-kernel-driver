@@ -1,0 +1,163 @@
+Script started on Tue 06 Jun 2017 11:53:47 PM PDT
+root@ece373:~/ECE373# ./user
+HEAD: 3
+TAIL: 16
+root@ece373:~/ECE373# !ping
+ping -I eth0 -c 1 -r 127.0.0.1
+PING 127.0.0.1 (127.0.0.1) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 127.0.0.1 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+root@ece373:~/ECE373# ./user
+HEAD: 6
+TAIL: 16
+root@ece373:~/ECE373# !ping
+ping -I eth0 -c 1 -r 127.0.0.1
+PING 127.0.0.1 (127.0.0.1) from 192.168.1.2 eth0: 56(84) bytes of data.
+From 192.168.1.2 icmp_seq=1 Destination Host Unreachable
+
+--- 127.0.0.1 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss, time 0ms
+
+root@ece373:~/ECE373# ./user
+HEAD: 9
+TAIL: 16
+root@ece373:~/ECE373# dmesg | grep pewpew
+[ 6524.650501] pewpew: Initializing...
+[ 6524.650517] pewpew: Initialized
+[ 6524.650522] pewpew: Registering pci driver
+[ 6524.650692] pewpew: mapping 131072 of memory starting at 00000000febe0000
+[ 6524.650811] pewpew 0000:03:00.0: irq 43 for MSI/MSI-X
+[ 6524.704125] pewpew: setup: RDH is 0
+[ 6524.704135] pewpew: setup: RDT is 16
+[ 6524.704141] pewpew: setup: RDLEN is 256
+[ 6524.704146] pewpew: setup: RCTL is: 00000000
+[ 6524.704155] pewpew: setup: RCTL is: 0000801a
+[ 6524.704161] pewpew: setup: TCTL is: 30000008
+[ 6524.704166] pewpew: setup: TCTL is: 3000010a
+[ 6524.704173] pewpew: setup: IMS is: 00000000
+[ 6524.704179] pewpew: setup: IMS is: 000000d4
+[ 6524.704220] pewpew: worker: pewpew.icr is 81000006
+[ 6524.704232] pewpew: worker: RDH is 0
+[ 6524.704240] pewpew: worker: RDT is 16
+[ 6524.704251] pewpew: worker: LEDCTL is 000e0e00
+[ 6525.208033] pewpew: worker: LEDCTL is 00000000
+[ 6525.208040] pewpew: worker: LSC: Link Status Change
+[ 6525.208045] pewpew: worker: STATUS: Link established
+[ 6718.917335] pewpew: worker: pewpew.icr is 80100080
+[ 6718.917362] pewpew: worker: RDH is 1
+[ 6718.917369] pewpew: worker: RDT is 16
+[ 6718.917379] pewpew: worker: LEDCTL is 000e0e00
+[ 6719.420054] pewpew: worker: LEDCTL is 00000000
+[ 6719.420061] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6719.420065] pewpew: worker: pewpew.i is 0
+[ 6719.420069] pewpew: worker: pewpew.rx_ring[0] DESCRIPTOR DONE
+[ 6719.420072] pewpew: worker: pewpew.rx_ring[0] Cleaning...
+[ 6719.420076] pewpew: worker: pewpew.rx_ring[0] status: 03
+[ 6719.420080] pewpew: worker: pewpew.rx_ring[0] length: 0040
+[ 6719.420083] pewpew: worker: pewpew.rx_ring[0] Cleaned
+[ 6719.916104] pewpew: worker: pewpew.icr is 80100080
+[ 6719.916114] pewpew: worker: RDH is 2
+[ 6719.916121] pewpew: worker: RDT is 16
+[ 6719.916131] pewpew: worker: LEDCTL is 000e0e00
+[ 6720.420047] pewpew: worker: LEDCTL is 00000000
+[ 6720.420054] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6720.420058] pewpew: worker: pewpew.i is 1
+[ 6720.420062] pewpew: worker: pewpew.rx_ring[1] DESCRIPTOR DONE
+[ 6720.420065] pewpew: worker: pewpew.rx_ring[1] Cleaning...
+[ 6720.420069] pewpew: worker: pewpew.rx_ring[1] status: 03
+[ 6720.420073] pewpew: worker: pewpew.rx_ring[1] length: 0040
+[ 6720.420076] pewpew: worker: pewpew.rx_ring[1] Cleaned
+[ 6720.916111] pewpew: worker: pewpew.icr is 80100080
+[ 6720.916121] pewpew: worker: RDH is 3
+[ 6720.916129] pewpew: worker: RDT is 16
+[ 6720.916141] pewpew: worker: LEDCTL is 000e0e00
+[ 6721.420069] pewpew: worker: LEDCTL is 00000000
+[ 6721.420076] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6721.420080] pewpew: worker: pewpew.i is 2
+[ 6721.420084] pewpew: worker: pewpew.rx_ring[2] DESCRIPTOR DONE
+[ 6721.420087] pewpew: worker: pewpew.rx_ring[2] Cleaning...
+[ 6721.420091] pewpew: worker: pewpew.rx_ring[2] status: 03
+[ 6721.420095] pewpew: worker: pewpew.rx_ring[2] length: 0040
+[ 6721.420098] pewpew: worker: pewpew.rx_ring[2] Cleaned
+[ 6744.351175] pewpew: Read complete, pack is 0310
+[ 6770.493012] pewpew: Read complete, pack is 0310
+[ 6774.966355] pewpew: worker: pewpew.icr is 80100080
+[ 6774.966365] pewpew: worker: RDH is 4
+[ 6774.966371] pewpew: worker: RDT is 16
+[ 6774.966380] pewpew: worker: LEDCTL is 000e0e00
+[ 6775.468051] pewpew: worker: LEDCTL is 00000000
+[ 6775.468057] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6775.468062] pewpew: worker: pewpew.i is 3
+[ 6775.468066] pewpew: worker: pewpew.rx_ring[3] DESCRIPTOR DONE
+[ 6775.468070] pewpew: worker: pewpew.rx_ring[3] Cleaning...
+[ 6775.468074] pewpew: worker: pewpew.rx_ring[3] status: 03
+[ 6775.468078] pewpew: worker: pewpew.rx_ring[3] length: 0040
+[ 6775.468082] pewpew: worker: pewpew.rx_ring[3] Cleaned
+[ 6775.964093] pewpew: worker: pewpew.icr is 80100080
+[ 6775.964103] pewpew: worker: RDH is 5
+[ 6775.964110] pewpew: worker: RDT is 16
+[ 6775.964120] pewpew: worker: LEDCTL is 000e0e00
+[ 6776.468052] pewpew: worker: LEDCTL is 00000000
+[ 6776.468058] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6776.468062] pewpew: worker: pewpew.i is 4
+[ 6776.468066] pewpew: worker: pewpew.rx_ring[4] DESCRIPTOR DONE
+[ 6776.468069] pewpew: worker: pewpew.rx_ring[4] Cleaning...
+[ 6776.468074] pewpew: worker: pewpew.rx_ring[4] status: 03
+[ 6776.468078] pewpew: worker: pewpew.rx_ring[4] length: 0040
+[ 6776.468082] pewpew: worker: pewpew.rx_ring[4] Cleaned
+[ 6776.964077] pewpew: worker: pewpew.icr is 80100080
+[ 6776.964099] pewpew: worker: RDH is 6
+[ 6776.964106] pewpew: worker: RDT is 16
+[ 6776.964116] pewpew: worker: LEDCTL is 000e0e00
+[ 6777.468059] pewpew: worker: LEDCTL is 00000000
+[ 6777.468066] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6777.468070] pewpew: worker: pewpew.i is 5
+[ 6777.468074] pewpew: worker: pewpew.rx_ring[5] DESCRIPTOR DONE
+[ 6777.468077] pewpew: worker: pewpew.rx_ring[5] Cleaning...
+[ 6777.468081] pewpew: worker: pewpew.rx_ring[5] status: 03
+[ 6777.468085] pewpew: worker: pewpew.rx_ring[5] length: 0040
+[ 6777.468088] pewpew: worker: pewpew.rx_ring[5] Cleaned
+[ 6779.861044] pewpew: Read complete, pack is 0610
+[ 6785.166229] pewpew: worker: pewpew.icr is 80100080
+[ 6785.166238] pewpew: worker: RDH is 7
+[ 6785.166244] pewpew: worker: RDT is 16
+[ 6785.166255] pewpew: worker: LEDCTL is 000e0e00
+[ 6785.668041] pewpew: worker: LEDCTL is 00000000
+[ 6785.668043] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6785.668045] pewpew: worker: pewpew.i is 6
+[ 6785.668048] pewpew: worker: pewpew.rx_ring[6] DESCRIPTOR DONE
+[ 6785.668054] pewpew: worker: pewpew.rx_ring[6] Cleaning...
+[ 6785.668059] pewpew: worker: pewpew.rx_ring[6] status: 03
+[ 6785.668063] pewpew: worker: pewpew.rx_ring[6] length: 0040
+[ 6785.668067] pewpew: worker: pewpew.rx_ring[6] Cleaned
+[ 6786.164059] pewpew: worker: pewpew.icr is 80100080
+[ 6786.164070] pewpew: worker: RDH is 8
+[ 6786.164076] pewpew: worker: RDT is 16
+[ 6786.164086] pewpew: worker: LEDCTL is 000e0e00
+[ 6786.668070] pewpew: worker: LEDCTL is 00000000
+[ 6786.668078] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6786.668081] pewpew: worker: pewpew.i is 7
+[ 6786.668085] pewpew: worker: pewpew.rx_ring[7] DESCRIPTOR DONE
+[ 6786.668089] pewpew: worker: pewpew.rx_ring[7] Cleaning...
+[ 6786.668093] pewpew: worker: pewpew.rx_ring[7] status: 03
+[ 6786.668096] pewpew: worker: pewpew.rx_ring[7] length: 0040
+[ 6786.668100] pewpew: worker: pewpew.rx_ring[7] Cleaned
+[ 6787.164064] pewpew: worker: pewpew.icr is 80100080
+[ 6787.164073] pewpew: worker: RDH is 9
+[ 6787.164080] pewpew: worker: RDT is 16
+[ 6787.164090] pewpew: worker: LEDCTL is 000e0e00
+[ 6787.668038] pewpew: worker: LEDCTL is 00000000
+[ 6787.668044] pewpew: worker: RXT: Receiver Timer Interrupt
+[ 6787.668048] pewpew: worker: pewpew.i is 8
+[ 6787.668052] pewpew: worker: pewpew.rx_ring[8] DESCRIPTOR DONE
+[ 6787.668056] pewpew: worker: pewpew.rx_ring[8] Cleaning...
+[ 6787.668060] pewpew: worker: pewpew.rx_ring[8] status: 03
+[ 6787.668064] pewpew: worker: pewpew.rx_ring[8] length: 0040
+[ 6787.668068] pewpew: worker: pewpew.rx_ring[8] Cleaned
+[ 6790.509067] pewpew: Read complete, pack is 0910
+root@ece373:~/ECE373# exit
+
+Script done on Tue 06 Jun 2017 11:54:44 PM PDT
